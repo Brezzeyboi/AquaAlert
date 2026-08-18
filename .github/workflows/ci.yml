@@ -1,0 +1,51 @@
+name: CI
+
+# Every push and pull request: the analyser and the whole test suite, then a
+# release APK anyone can download from the run's artifacts.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: analyse and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          # Pinned to what the app is developed against, so a stable release
+          # cannot quietly change the result of a run.
+          flutter-version: 3.47.0
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  apk:
+    name: release apk
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.0
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      # Signed with the debug key on purpose: this is a prototype, and a real
+      # keystore does not belong in a public workflow.
+      - run: flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aquaalert-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error

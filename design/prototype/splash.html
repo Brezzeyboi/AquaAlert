@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>AquaAlert — splash motion study</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --surface:#E7EDF3;
+    --ink:#0D2750;
+    --accent:#26BDE2;
+    --deep:#178FB5;
+    --ridge:#E9EFF5;
+    --W:360; --H:780;          /* design space, everything is authored in it */
+    --fit:1;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    background:#cfd8e2;
+    font-family:'Outfit',system-ui,-apple-system,'Segoe UI',sans-serif;
+    display:grid; place-items:center; overflow:hidden;
+  }
+
+  /* The phone screen. All children are positioned in the 360x780 design
+     space and the whole thing is scaled to fit — one transform, no
+     responsive maths anywhere else. */
+  #screen{
+    position:relative;
+    width:calc(var(--W) * 1px);
+    height:calc(var(--H) * 1px);
+    transform:scale(var(--fit));
+    background:var(--surface);
+    overflow:hidden;
+    box-shadow:0 30px 80px rgba(13,39,80,.35);
+  }
+  @media (max-width:800px){ #screen{box-shadow:none} }
+
+  /* Very faint top-left lighting across the whole surface. */
+  #screen::before{
+    content:''; position:absolute; inset:0; pointer-events:none;
+    background:radial-gradient(120% 90% at 12% 6%,
+      rgba(255,255,255,.85) 0%, rgba(255,255,255,0) 55%);
+  }
+
+  svg{position:absolute; inset:0; width:100%; height:100%; overflow:visible}
+  /* ---- clay ripple ridges: real raised rings, not embossing ---- */
+  .ring{
+    position:absolute; left:180px; top:470px;
+    border-radius:50%;
+    transform:translate(-50%,-50%) scale(.18);
+    opacity:0;
+    border:9px solid #EFF5FA;
+    /* Convex ridge, lit from the top-left. The outer up-left face and the
+       inner down-right face both catch light; the two opposite faces are in
+       shadow. Navy-tinted, never black. */
+    box-shadow:
+      -3px -4px  7px rgba(255,255,255,1),
+       5px  8px 16px rgba(13,39,80,.34),
+      inset -2px -3px 6px rgba(13,39,80,.16),
+      inset  4px  5px 8px rgba(255,255,255,.95);
+    will-change:transform,opacity;
+  }
+
+  /* ---- wordmark ---- */
+  #mark{
+    position:absolute; left:0; right:0; top:74px;
+    text-align:center; opacity:0;
+  }
+  #mark h1{
+    font-size:44px; font-weight:700; letter-spacing:-1.2px;
+    color:var(--ink); line-height:1;
+  }
+  /* the droplet lives inside the counterform of the capital A */
+  #mark .a{position:relative; display:inline-block}
+  #mark .a svg{
+    position:absolute; left:50%; bottom:2px;
+    width:13px; height:17px; transform:translateX(-50%);
+    inset:auto;
+  }
+  #mark p{
+    margin-top:11px; font-size:14.5px; font-weight:500;
+    letter-spacing:.2px; color:rgba(13,39,80,.6);
+  }
+
+  /* ---- controls, prototype only ---- */
+  #ui{
+    position:fixed; bottom:18px; left:50%; transform:translateX(-50%);
+    display:flex; gap:8px; z-index:9;
+  }
+  #ui button{
+    font:600 13px 'Outfit',sans-serif; color:var(--ink);
+    background:#eef3f8; border:0; border-radius:999px;
+    padding:9px 16px; cursor:pointer;
+    box-shadow:-2px -2px 5px rgba(255,255,255,.9), 3px 4px 10px rgba(13,39,80,.22);
+  }
+  #ui button:active{transform:translateY(1px)}
+  #ui button[aria-pressed=true]{background:var(--accent); color:#fff}
+  /* ---- comic ink layer: flat, on top, casts nothing ---- */
+  #ink,#water{transform-box:view-box}
+  #halo{opacity:0}
+  .speed{opacity:0; transform-origin:180px 470px; transform-box:view-box}
+  #corona{opacity:0; transform-origin:180px 470px; transform-box:view-box}
+  #pool{opacity:0}
+  #dimple{opacity:0}
+  .fling{opacity:0}
+  #fall{opacity:0}
+  #drop{opacity:0}
+
+  @media (prefers-reduced-motion:reduce){
+    /* the settled frame only: clay ripples, the calm pool, the name.
+       No ink — the comic layer is impact feedback, never a rest state. */
+    .ring,#mark,#pool{opacity:1 !important}
+    #dimple{opacity:.16 !important}
+    .ring{transform:translate(-50%,-50%) scale(1) !important}
+  }
+  /* PLACEHOLDER_CSS */
+</style>
+</head>
+<body>
+<div id="screen">
+
+  <!-- clay ripple ridges, injected by script -->
+  <div id="rings"></div>
+
+  <!-- comic ink: Ben-Day halftone halo + impact speed lines. Flat, on top,
+       casts nothing, and gone again before the water calms. -->
+  <svg id="ink" viewBox="0 0 360 780" aria-hidden="true">
+    <defs>
+      <pattern id="dots" width="9" height="9" patternUnits="userSpaceOnUse">
+        <circle cx="2" cy="2" r="1.55" fill="#0D2750"/>
+      </pattern>
+      <!-- dense at the impact, gone before the edges -->
+      <radialGradient id="fade" cx="180" cy="470" r="330" gradientUnits="userSpaceOnUse">
+        <stop offset="0.16" stop-color="#fff" stop-opacity="0"/>
+        <stop offset="0.32" stop-color="#fff" stop-opacity="1"/>
+        <stop offset="0.58" stop-color="#fff" stop-opacity="0"/>
+      </radialGradient>
+      <mask id="haloFade"><rect width="360" height="780" fill="url(#fade)"/></mask>
+      <linearGradient id="fallGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0"   stop-color="#26BDE2" stop-opacity="0"/>
+        <stop offset="1"   stop-color="#26BDE2" stop-opacity=".85"/>
+      </linearGradient>
+    </defs>
+    <!-- Ben-Day halftone: one masked annulus, dense at the impact and gone
+         before the edges. Wedges were tried and read as grey smudges. -->
+    <circle id="halo" cx="180" cy="470" r="200" fill="url(#dots)"
+            mask="url(#haloFade)"/>
+    <g id="speeds"></g>
+  </svg>
+
+  <!-- water: the only dimensional cyan forms -->
+  <svg id="water" viewBox="0 0 360 780" aria-hidden="true">
+    <circle id="dimple" cx="180" cy="470" r="52" fill="#178FB5" opacity=".18"/>
+    <g id="corona"></g>
+    <g id="pool"></g>
+    <g id="flings"></g>
+    <line id="fall" x1="180" y1="0" x2="180" y2="470"
+          stroke="url(#fallGrad)" stroke-width="3.2" stroke-linecap="round"/>
+    <path id="drop" fill="#26BDE2"
+          d="M0 -9 C4.4 -3.4 7 .2 7 3.3 A7 7 0 0 1 -7 3.3 C-7 .2 -4.4 -3.4 0 -9 Z"/>
+  </svg>
+
+  <div id="mark">
+    <h1><span class="a">A<svg viewBox="0 0 13 17"><path fill="#26BDE2"
+      d="M6.5 0C10 4.2 13 7.9 13 10.6A6.5 6.5 0 0 1 0 10.6C0 7.9 3 4.2 6.5 0Z"/></svg></span>quaAlert</h1>
+    <p>Spot the Leak. Save the Water.</p>
+  </div>
+</div>
+
+<div id="ui">
+  <button id="replay">Replay</button>
+  <button id="slow" aria-pressed="false">Slow 0.35&times;</button>
+</div>
+<script>
+const CX = 180, CY = 470;                 // impact point, design space
+const NS = 'http://www.w3.org/2000/svg';
+const el = (n, a) => { const e = document.createElementNS(NS, n);
+  for (const k in a) e.setAttribute(k, a[k]); return e; };
+const rad = d => d * Math.PI / 180;
+const px = (r, a) => [CX + r * Math.cos(rad(a)), CY + r * Math.sin(rad(a))];
+const pt = ([x, y]) => ({ x, y });
+
+// Scale the 360x780 design space to whatever viewport we are on.
+const fit = () => document.documentElement.style.setProperty('--fit',
+  Math.min(innerWidth / 360, (innerHeight * 0.9) / 780).toFixed(4));
+addEventListener('resize', fit); fit();
+
+/* ---- build: clay ripple ridges. Tinted cyan and fading outward — an
+       untinted ridge on a light clay surface reads as an embossed plate,
+       not as water. The tint is what makes it a ripple. ----------------- */
+const RINGS = [
+  { d: 176, w: 10,  tint: '#A5E3F2', end: 1    },
+  { d: 260, w: 8.5, tint: '#CDE9F4', end: 0.96 },
+  { d: 356, w: 7,   tint: '#DEEBF4', end: 0.88 },
+  { d: 464, w: 5.5, tint: '#E5EEF5', end: 0.76 },
+  { d: 584, w: 4.5, tint: '#E9EFF5', end: 0.6  },
+];
+const ringEls = RINGS.map(r => {
+  const d = document.createElement('div');
+  d.className = 'ring';
+  d.style.width = d.style.height = r.d + 'px';
+  d.style.borderWidth = r.w + 'px';
+  d.style.borderColor = r.tint;
+  document.getElementById('rings').append(d);
+  return d;
+});
+
+/* ---- halftone: nothing to build — it is one masked annulus in the markup,
+       flat texture only, never a third radiating line system. ------------- */
+const halo = document.getElementById('halo');
+/* ---- build: speed lines. Tapered triangles, not strokes — a comic speed
+       line is thick at the source and comes to a point. Eleven, short, all
+       inside the second ripple so the ripples stay the dominant form. ---- */
+const speeds = document.getElementById('speeds');
+const speedEls = [];
+for (let i = 0; i < 9; i++) {
+  const a = i * 40 + ((i * 7) % 5) * 6;             // jittered, not spokes
+  const r0 = 74, r1 = 108 + ((i * 67) % 62);        // short, uneven
+  const w = 3.4 + (i % 3) * 1.1;
+  const [tx, ty] = px(r1, a);
+  const [bx, by] = px(r0, a + w * 0.5);
+  const [cx2, cy2] = px(r0, a - w * 0.5);
+  const p = el('path', { class: 'speed', fill: '#0D2750',
+    d: `M${tx} ${ty} L${bx} ${by} L${cx2} ${cy2} Z` });
+  speeds.append(p); speedEls.push(p);
+}
+
+/* ---- build: the splash lump. Seen from directly above, the water itself is
+       a wobbling mass — it is NOT allowed to radiate. Only one radial spike
+       system may share the impact centre, and that job belongs to the ink
+       (speed lines + starburst); the thrown water is carried by the flung
+       droplets. Give the water spikes too and the three concentric spike
+       systems fuse into a sun, which is what a gear, a cloud and a virus all
+       were in earlier rounds.
+       Built as overlapping circles of one fill: unions into a lumpy
+       silhouette with no path maths and no seams. ------------------------ */
+const BODY = [];
+for (let i = 0; i < 8; i++) {
+  const a = i * 45 + ((i * 5) % 4) * 9;
+  // pushed well off centre with small radii, or the circles stack into one
+  // smooth disc and the whole thing reads as a glossy button
+  BODY.push({ ...pt(px(15 + ((i * 5) % 4) * 5, a)), r: 20 + ((i * 3) % 4) * 3 });
+}
+const REACH = Math.max(...BODY.map(b => Math.hypot(b.x - CX, b.y - CY) + b.r));
+
+function splash(parent, fill, dx = 0, dy = 0) {
+  for (const b of BODY) parent.append(el('circle',
+    { cx: (b.x + dx).toFixed(1), cy: (b.y + dy).toFixed(1), r: b.r, fill }));
+}
+const corona = document.getElementById('corona');
+splash(corona, '#178FB5', 2.5, 3.5);                 // shadow side, down-right
+splash(corona, '#26BDE2');
+corona.append(el('ellipse', { cx: CX - 13, cy: CY - 14, rx: 15, ry: 10,
+  fill: '#8FDDF0', opacity: '.55' }));               // top-left highlight
+
+/* the calm pool the corona falls back into — the one cyan form that stays */
+const pool = document.getElementById('pool');
+pool.append(el('circle', { cx: CX + 1.5, cy: CY + 2, r: 34, fill: '#178FB5' }));
+pool.append(el('circle', { cx: CX, cy: CY, r: 32, fill: '#26BDE2' }));
+pool.append(el('ellipse', { cx: CX - 10, cy: CY - 11, rx: 12, ry: 8,
+  fill: '#8FDDF0', opacity: '.55' }));
+
+/* ---- build: flung droplets. These carry all of the thrown-water energy,
+       which is why the lump itself stays a lump. Clustered angles, uneven
+       launch radii and three sizes — evenly spaced same-size droplets on
+       equal-length stalks read as a molecule diagram, not as water. ------- */
+const flings = document.getElementById('flings');
+const flingEls = [];
+const FLING_A = [-104, -68, -41, -8, 22, 57, 96, 134, 168, 206, 244];
+FLING_A.forEach((a, i) => {
+  const g = el('g', { class: 'fling' });
+  const r0 = 52 + ((i * 17) % 13);                  // uneven launch radii
+  const [sx, sy] = px(r0, a), [ex, ey] = px(r0 + 16 + (i % 3) * 7, a);
+  g.append(el('line', { x1: sx, y1: sy, x2: ex, y2: ey, stroke: '#26BDE2',
+    'stroke-width': 2.4, 'stroke-linecap': 'round', opacity: '.38' }));
+  g.append(el('circle', { cx: ex, cy: ey, r: 4.2 + ((i * 5) % 3) * 2.1,
+    fill: '#26BDE2' }));
+  g._vec = [Math.cos(rad(a)), Math.sin(rad(a))];
+  flings.append(g); flingEls.push(g);
+});
+const fall = document.getElementById('fall');
+fall.setAttribute('y1', -96); fall.setAttribute('y2', 0);
+const drop = document.getElementById('drop');
+const mark = document.getElementById('mark');
+
+const EASE_IN   = 'cubic-bezier(.55,0,.85,.35)';
+const EASE_OUT  = 'cubic-bezier(.16,.9,.28,1)';
+const OVERSHOOT = 'cubic-bezier(.2,1.7,.4,1)';
+const IMPACT = 400;
+const SETTLE = IMPACT + 520;    // the water starts falling back in
+let anims = [];
+
+function play() {
+  anims.forEach(a => a.cancel());
+  anims = [];
+  const go = (node, frames, opts) => {
+    // forwards, never 'both'. Every one of these elements rests at opacity 0
+    // in CSS, and half of them are delayed fade-OUTs whose first keyframe is
+    // the visible value — a backwards fill paints those at t=0, putting the
+    // whole splash on screen before the drop has fallen.
+    const a = node.animate(frames, { fill: 'forwards', ...opts });
+    anims.push(a); return a;
+  };
+
+  // 1. the fall. Accelerating, streak trailing, both dead on contact.
+  go(drop, [{ transform: `translate(${CX}px,-24px)`, opacity: 1 },
+            { transform: `translate(${CX}px,${CY}px)`, opacity: 1 }],
+     { duration: IMPACT, easing: EASE_IN });
+  go(drop, [{ opacity: 1 }, { opacity: 0 }],
+     { duration: 60, delay: IMPACT - 20 });
+  go(fall, [{ transform: 'translateY(-24px)', opacity: 0 },
+            { transform: 'translateY(-24px)', opacity: 1, offset: 0.2 },
+            { transform: `translateY(${CY}px)`, opacity: 1 }],
+     { duration: IMPACT, easing: EASE_IN });
+  go(fall, [{ opacity: 1 }, { opacity: 0 }],
+     { duration: 90, delay: IMPACT });
+  // 2. impact: the depression, then the lump punching up out of it.
+  const dimple = document.getElementById('dimple');
+  go(dimple, [{ opacity: 0 }, { opacity: .3 }],
+     { duration: 90, delay: IMPACT - 10 });
+  go(corona, [{ transform: 'scale(.28)', opacity: 0 },
+              { transform: 'scale(1.16)', opacity: 1, offset: .5 },
+              { transform: 'scale(1)', opacity: 1 }],
+     { duration: 360, delay: IMPACT, easing: OVERSHOOT });
+
+  // 2b. the water falls back in: the corona retracts and hands off to the
+  //     calm pool, which is the only cyan form left at the end.
+  go(corona, [{ transform: 'scale(1)', opacity: 1 },
+              { transform: 'scale(.5)', opacity: 0 }],
+     { duration: 420, delay: SETTLE, easing: 'cubic-bezier(.4,0,.5,1)' });
+  go(pool, [{ opacity: 0 }, { opacity: 1 }],
+     { duration: 400, delay: SETTLE + 120 });
+  go(dimple, [{ opacity: .3 }, { opacity: .16 }],
+     { duration: 520, delay: SETTLE });
+
+  // 3. ripples, staggered outward
+  ringEls.forEach((r, i) => go(r,
+    [{ transform: 'translate(-50%,-50%) scale(.18)', opacity: 0 },
+     { transform: 'translate(-50%,-50%) scale(.55)', opacity: 1, offset: .3 },
+     { transform: 'translate(-50%,-50%) scale(1)', opacity: RINGS[i].end }],
+    { duration: 760, delay: IMPACT + 10 + i * 95, easing: EASE_OUT }));
+
+  // 4. flung droplets, out and gone — staggered so they never move as a ring
+  flingEls.forEach((g, i) => {
+    const [vx, vy] = g._vec, d = 104 + ((i * 29) % 58);
+    go(g, [{ transform: 'translate(0,0) scale(1)', opacity: 1 },
+           { transform: `translate(${vx * d}px,${vy * d}px) scale(.45)`, opacity: 0 }],
+       { duration: 400 + ((i * 41) % 190), delay: IMPACT + ((i * 23) % 70),
+         easing: EASE_IN });
+  });
+
+  // 5. speed lines draw outward, then leave. The comic layer is impact
+  //    feedback only — it must be gone before the ripples settle, or it
+  //    turns into grubby texture lying on top of the clay.
+  speedEls.forEach((p, i) => {
+    go(p, [{ transform: 'scale(.2)', opacity: 0 },
+           { transform: 'scale(1)', opacity: .88 }],
+       { duration: 240, delay: IMPACT + 60 + (i % 5) * 18, easing: EASE_OUT });
+    go(p, [{ opacity: .88 }, { opacity: 0 }],
+       { duration: 300, delay: IMPACT + 340 + i * 14 });
+  });
+
+  // 6. halftone: in with the bang, out before the water calms
+  go(halo, [{ opacity: 0 }, { opacity: .34 }],
+     { duration: 240, delay: IMPACT + 60 });
+  go(halo, [{ opacity: .34 }, { opacity: 0 }],
+     { duration: 360, delay: IMPACT + 330 });
+
+  // 7. the name arrives after the water, never before it
+  go(mark, [{ opacity: 0, transform: 'translateY(-9px)' },
+            { opacity: 1, transform: 'translateY(0)' }],
+     { duration: 420, delay: 780, easing: EASE_OUT });
+
+  // regression guard for the bug above: nothing may be painted before its own
+  // delay elapses, or the impact appears while the drop is still in the air.
+  console.assert(!anims.some(a => {
+    const t = a.effect.getTiming();
+    const first = a.effect.getKeyframes()[0];
+    return t.delay > 0 && (t.fill === 'both' || t.fill === 'backwards')
+           && +first.opacity > 0;
+  }), 'a delayed fade-out fills backwards — impact shows before the drop lands');
+}
+/* ---- controls -------------------------------------------------------- */
+let rate = 1;
+const setRate = r => { rate = r; anims.forEach(a => a.playbackRate = r); };
+document.getElementById('replay').onclick = () => { play(); setRate(rate); };
+const slow = document.getElementById('slow');
+slow.onclick = () => {
+  const on = slow.getAttribute('aria-pressed') !== 'true';
+  slow.setAttribute('aria-pressed', on);
+  setRate(on ? 0.35 : 1);
+};
+
+if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  /* settled frame only — CSS holds the rings, pool and name visible */
+} else {
+  document.fonts.ready.then(play);      // wait for Outfit so nothing reflows
+  setTimeout(() => { if (!anims.length) play(); }, 900);   // font blocked
+}
+
+/* self-check: geometry must land where the art says it does */
+console.assert(ringEls.length === 5, 'expected 5 ripple rings');
+console.assert(speedEls.length === 9, 'expected 9 speed lines');
+console.assert(BODY.length === 8, 'splash lump: 8 circles');
+console.assert(flingEls.length === 11, 'expected 11 flung droplets');
+console.assert(pool.children.length === 3, 'pool: base, body, highlight');
+console.assert(Math.abs(px(100, 0)[0] - 280) < 0.01, 'polar maths is off');
+console.assert(BODY.some(b => Math.hypot(b.x - CX, b.y - CY) < b.r),
+  'lump has a hole at the centre');
+// the lump must not swallow the ripple it made, nor the roots of the ink
+console.assert(REACH < RINGS[0].d / 2, 'lump overruns the first ripple');
+console.assert(REACH < 74, 'lump covers the base of the speed lines');
+</script>
+</body>
+</html>

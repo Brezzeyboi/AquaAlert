@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The clay surface, so a cold start never flashes black or white before the
+     splash paints its first frame. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/launch_surface" />
+</layer-list>

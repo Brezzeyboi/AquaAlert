@@ -1,0 +1,50 @@
+name: aquaalert
+description: "Spot the Leak. Save the Water."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  sensors_plus: ^6.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+  assets:
+    # The launcher render doubles as the sign-in mark, so the icon on the home
+    # screen and the icon in the app are the same object.
+    - assets/icon/launcher.png
+    # The report photos the prototype ships with. Bundled, so every list and the
+    # detail screen look like the real thing with no network at all.
+    - assets/demo/
+
+  # Outfit, shipped inside the APK rather than fetched by google_fonts at first
+  # launch: the prototype has to look right on a phone in aeroplane mode, and a
+  # font download was the only thing the app still needed a network for.
+  fonts:
+    - family: Outfit
+      fonts:
+        - asset: assets/fonts/Outfit.ttf
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/launcher.png"
+  # The tile's own cyan, sampled from the approved render, so the adaptive mask
+  # can crop the squircle's corners without exposing a different colour.
+  adaptive_icon_background: "#40C1F1"
+  adaptive_icon_foreground: "assets/icon/launcher.png"
+  # Percentage, rendered as an Android <inset>. The magnifier fills most of the
+  # tile, so it has to shrink into the adaptive safe zone or the launcher crops
+  # the handle off.
+  adaptive_icon_foreground_inset: 18
+  min_sdk_android: 21
