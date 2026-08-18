@@ -7,17 +7,20 @@ import '../widgets/common.dart';
 import 'leaderboard.dart';
 
 /// The event, read-only for a student. LIVE NOW, a countdown, the prize stated
-/// plainly, how it works, and where your class stands — a vague prize is what
-/// kills participation, so it is a card of its own.
+/// plainly, and where your class stands — a vague prize is what kills
+/// participation, so it is a card of its own.
+///
+/// It belongs to the school, so it counts what the school fixes. Somebody with no
+/// class — the head, the office — gets the leading class instead of "yours".
 class EventScreen extends StatelessWidget {
   const EventScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     const e = Store.event;
-    final mine = Store.classes.firstWhere((c) => c.name == Store.userClass,
-        orElse: () => Store.classes.first);
-    final rank = Store.classes.indexOf(mine) + 1;
+    final mine = Store.classes.where((c) => c.name == Store.userClass).firstOrNull;
+    final show = mine ?? Store.classes.first;
+    final rank = Store.classes.indexOf(show) + 1;
     return Scaffold(
       backgroundColor: A.surface,
       body: SafeArea(
@@ -75,8 +78,11 @@ class EventScreen extends StatelessWidget {
                       children: [
                         Text('How it works', style: A.h3),
                         const SizedBox(height: 12),
-                        const _How(Icons.water_drop_rounded, 'Report leaks anywhere',
-                            'At school or out in your neighbourhood, both count'),
+                        // The event is the school's own, so it counts what the
+                        // school fixes. Street reports still count everywhere
+                        // else in the app; they are just not this competition.
+                        const _How(Icons.water_drop_rounded, 'Report leaks in school',
+                            'Anything inside ${Store.shortName} counts for your class'),
                         const SizedBox(height: 10),
                         const _How(Icons.star_rounded, 'Every litre counts twice',
                             'Double XP while the event runs'),
@@ -92,7 +98,8 @@ class EventScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Your class right now', style: A.h3),
+                        Text(mine == null ? 'Leading right now' : 'Your class right now',
+                            style: A.h3),
                         const SizedBox(height: 12),
                         Row(
                           children: [
@@ -108,14 +115,19 @@ class EventScreen extends StatelessWidget {
                               child: Text('$rank', style: A.figure(17)),
                             ),
                             const SizedBox(width: 13),
-                            Expanded(child: Text(mine.name, style: A.h2.copyWith(fontSize: 19))),
-                            Text('${litres(mine.litres)} L', style: A.figure(21)),
+                            Expanded(child: Text(show.name, style: A.h2.copyWith(fontSize: 19))),
+                            Text('${litres(show.litres)} L', style: A.figure(21)),
                           ],
                         ),
-                        const SizedBox(height: 12),
-                        // Campus and community litres, split in one bar: the
-                        // event counts both, and the split is the point.
-                        _Split(campus: mine.litres * 3 ~/ 4, community: mine.litres ~/ 4),
+                        const SizedBox(height: 10),
+                        Text(
+                          mine == null
+                              ? '${Store.classes.length} classes are on the board.'
+                              : '${show.students} students · '
+                                  '${litres(Store.classes.first.litres - show.litres)} L behind '
+                                  '${Store.classes.first.name}',
+                          style: A.tiny,
+                        ),
                       ],
                     ),
                   ),
@@ -288,77 +300,3 @@ class _How extends StatelessWidget {
         ],
       );
 }
-
-/// Campus litres and community litres in one bar, with the legend under it.
-class _Split extends StatelessWidget {
-  const _Split({required this.campus, required this.community});
-  final int campus, community;
-
-  @override
-  Widget build(BuildContext context) {
-    final total = (campus + community).clamp(1, 1 << 30);
-    return Column(
-      children: [
-        ClayWell(
-          radius: A.rPill,
-          padding: const EdgeInsets.all(4),
-          child: SizedBox(
-            height: 12,
-            child: Row(
-              children: [
-                Expanded(
-                  flex: campus,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(A.rPill),
-                      color: A.accent,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 2),
-                Expanded(
-                  flex: community.clamp(1, total),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(A.rPill),
-                      color: A.accentDeep,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 9),
-        Row(
-          children: [
-            _Key(A.accent, 'School', campus),
-            const SizedBox(width: 16),
-            _Key(A.accentDeep, 'Community', community),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _Key extends StatelessWidget {
-  const _Key(this.color, this.label, this.value);
-  final Color color;
-  final String label;
-  final int value;
-
-  @override
-  Widget build(BuildContext context) => Row(
-        children: [
-          Container(
-            width: 11,
-            height: 11,
-            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)),
-          ),
-          const SizedBox(width: 6),
-          Text('$label ${litres(value)} L', style: A.tiny),
-        ],
-      );
-}
-

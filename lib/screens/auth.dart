@@ -529,17 +529,23 @@ class GoogleButton extends StatelessWidget {
       );
 }
 
-/// Google's four-colour G, drawn rather than shipped as an asset: four arcs and
-/// the bar, in their own colours.
+/// Google's four-colour G, drawn rather than shipped as an asset.
+///
+/// The segments are what make it recognisable, and the first version had them
+/// rotated: red across the top, blue down the right ending in the bar, green
+/// along the bottom, yellow up the left, and the aperture between the green and
+/// the bar. Angles are clockwise from three o'clock.
 class _GoogleMark extends CustomPainter {
   const _GoogleMark();
 
   @override
   void paint(Canvas canvas, Size size) {
     final r = size.shortestSide / 2;
-    final rect = Rect.fromCircle(center: size.center(Offset.zero), radius: r * 0.78);
-    final stroke = r * 0.44;
-    void arc(double from, double sweep, Color c) => canvas.drawArc(
+    final c = size.center(Offset.zero);
+    final ring = r * 0.76;
+    final stroke = r * 0.46;
+    final rect = Rect.fromCircle(center: c, radius: ring);
+    void arc(double from, double sweep, Color colour) => canvas.drawArc(
           rect,
           from * math.pi / 180,
           sweep * math.pi / 180,
@@ -547,15 +553,17 @@ class _GoogleMark extends CustomPainter {
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = stroke
-            ..color = c,
+            ..color = colour,
         );
-    arc(-18, -72, const Color(0xFFEA4335)); // red, upper right
-    arc(-90, -80, const Color(0xFFFBBC05)); // yellow, left top
-    arc(170, 80, const Color(0xFF34A853)); // green, lower left
-    arc(80, -98, const Color(0xFF4285F4)); // blue, right side
-    // The bar into the middle, which is what makes it a G and not a C.
+    arc(-150, 90, const Color(0xFFEA4335)); // red, ten o'clock over the top to one
+    arc(-60, 66, const Color(0xFF4285F4)); // blue, one o'clock down to the bar
+    arc(46, 89, const Color(0xFF34A853)); // green, along the bottom
+    arc(135, 75, const Color(0xFFFBBC05)); // yellow, up the left
+    // The bar into the middle at the vertical centre — what makes it a G and not
+    // a C. It runs from just right of centre to the outer edge of the ring.
     canvas.drawRect(
-      Rect.fromLTWH(size.width * 0.5, size.height * 0.42, size.width * 0.36, stroke),
+      Rect.fromLTRB(c.dx + ring * 0.08, c.dy - stroke / 2, c.dx + ring + stroke / 2,
+          c.dy + stroke / 2),
       Paint()..color = const Color(0xFF4285F4),
     );
   }

@@ -146,7 +146,7 @@ class _EventBanner extends StatelessWidget {
                         const Icon(Icons.double_arrow_rounded, size: 16, color: A.accentDeep),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text('Street and campus reports both count',
+                          child: Text('Every leak fixed in school counts',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: A.label.copyWith(color: A.ink)),

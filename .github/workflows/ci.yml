@@ -1,7 +1,8 @@
 name: CI
 
-# Every push and pull request: the analyser and the whole test suite, then a
-# release APK anyone can download from the run's artifacts.
+# Every push and pull request: the analyser and the whole test suite. A push to
+# main also publishes the release APK as a GitHub Release, so anyone can download
+# and install it without a Flutter toolchain and without digging through artifacts.
 on:
   push:
     branches: [main]
@@ -25,10 +26,13 @@ jobs:
       - run: flutter analyze
       - run: flutter test
 
-  apk:
+  release:
     name: release apk
     needs: check
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # needed to create the release
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -42,10 +46,26 @@ jobs:
           cache: true
       - run: flutter pub get
       # Signed with the debug key on purpose: this is a prototype, and a real
-      # keystore does not belong in a public workflow.
+      # keystore does not belong in a workflow file.
       - run: flutter build apk --release
-      - uses: actions/upload-artifact@v4
-        with:
-          name: aquaalert-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error
+
+      - name: Publish the APK as a release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v1.0.${{ github.run_number }}"
+          cat > notes.md <<'EOF'
+          **AquaAlert — Spot the Leak. Save the Water.**
+
+          Community water-leak reporting for UN SDG 6. Built from the commit below;
+          analyser and the full test suite passed before this was published.
+
+          **Install:** download `app-release.apk`, open it on an Android phone and
+          allow installs from unknown sources when asked. No account or network is
+          needed — three demo accounts are already on the sign-in screen, and the
+          join code for Maxfort Pitampura is `MX7412`.
+          EOF
+          gh release create "$tag" build/app/outputs/flutter-apk/app-release.apk \
+            --title "AquaAlert $tag" \
+            --notes-file notes.md \
+            --latest

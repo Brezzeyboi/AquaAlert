@@ -20,21 +20,40 @@ class ReportForm extends StatefulWidget {
 /// reporting, a child picking from twenty is filling in a form.
 const _rooms = ['Washroom', 'Corridor', 'Canteen', 'Playground', 'Water cooler'];
 const _hostelRooms = ['Washroom', 'Corridor', 'Hostel', 'Library', 'Canteen'];
-const _campusKinds = ['Dripping tap', 'Running tap', 'Broken pipe', 'Overflowing tank'];
-const _streetKinds = ['Street pipe', 'Public tap', 'Water tanker', 'Open drain'];
+const _campusKinds = [
+  'Dripping tap',
+  'Running tap',
+  'Broken pipe',
+  'Overflowing tank',
+  'Water cooler',
+  'Flush running',
+  'Blocked drain',
+  'Seepage on a wall',
+];
+const _streetKinds = [
+  'Street pipe',
+  'Public tap',
+  'Hand pump',
+  'Water tanker',
+  'Valve chamber',
+  'Rooftop tank',
+  'Open drain',
+  'Fire hydrant',
+];
 
-/// The stand-in for the camera: a bundled photo of whatever was chosen. The
-/// picker is still a TODO, and a demo where every report shows the same street is
-/// worse than one where the picture matches the leak.
-String demoPhoto(String? kind) => switch (kind) {
-      'Broken pipe' => 'assets/demo/pipe.jpg',
-      'Overflowing tank' || 'Water tanker' => 'assets/demo/tank.jpg',
-      'Public tap' => 'assets/demo/handpump.jpg',
-      'Street pipe' => 'assets/demo/valve.jpg',
-      'Open drain' => 'assets/demo/street.jpg',
-      'Water cooler' => 'assets/demo/cooler.jpg',
-      _ => 'assets/demo/tap.jpg',
-    };
+/// The stand-in for the camera, in the order the retry button walks them. The
+/// picker is a TODO, so the reporter chooses a picture from these instead of the
+/// app guessing one from what they tapped.
+const demoShots = [
+  'assets/demo/tap.jpg',
+  'assets/demo/pipe.jpg',
+  'assets/demo/valve.jpg',
+  'assets/demo/handpump.jpg',
+  'assets/demo/tank.jpg',
+  'assets/demo/rooftop.jpg',
+  'assets/demo/cooler.jpg',
+  'assets/demo/street.jpg',
+];
 
 /// Severity in litres a day. The slider is the only place a child estimates a
 /// number, so it estimates in words and this table turns words into litres.
@@ -54,6 +73,10 @@ class _ReportFormState extends State<ReportForm> {
   double _severity = 0.5;
   bool _located = false;
   bool _photo = false;
+
+  /// Which stand-in photo is showing. The retry button moves it on.
+  int _shot = 0;
+  String get _photoPath => demoShots[_shot % demoShots.length];
 
   bool get _campus => _scope != Scope.community;
   bool get _canPhoto => _scope != Scope.school;
@@ -87,7 +110,7 @@ class _ReportFormState extends State<ReportForm> {
           : (_where.text.trim().isEmpty ? 'Near me' : _where.text.trim()),
       litresPerDay: _litres,
       description: _note.text.trim(),
-      photo: _photo ? demoPhoto(_kind) : null,
+      photo: _photo ? _photoPath : null,
       lat: _located ? 28.6139 : null,
       lng: _located ? 77.2090 : null,
     );
@@ -162,9 +185,14 @@ class _ReportFormState extends State<ReportForm> {
                   if (_canPhoto) ...[
                     _PhotoCard(
                       taken: _photo,
-                      kind: _kind,
+                      photo: _photoPath,
                       // TODO(image_picker): wire the camera once the plugin is added.
-                      onTap: () => setState(() => _photo = !_photo),
+                      onTap: () => setState(() => _photo = true),
+                      onNext: () => setState(() => _shot++),
+                      onClear: () => setState(() {
+                        _photo = false;
+                        _shot = 0;
+                      }),
                     ),
                     const SizedBox(height: 14),
                   ],
@@ -355,12 +383,20 @@ class _Input extends StatelessWidget {
 /// wired; when there is a picture it shows with the camera button on top of it,
 /// exactly as the community mockup draws it.
 class _PhotoCard extends StatelessWidget {
-  const _PhotoCard({required this.taken, required this.onTap, required this.kind});
+  const _PhotoCard({
+    required this.taken,
+    required this.photo,
+    required this.onTap,
+    required this.onNext,
+    required this.onClear,
+  });
   final bool taken;
-  final VoidCallback onTap;
 
-  /// What was chosen up the form, so the stand-in picture is of that thing.
-  final String? kind;
+  /// The picture showing right now.
+  final String photo;
+
+  /// Take one, walk to the next one, or throw it away.
+  final VoidCallback onTap, onNext, onClear;
 
   @override
   Widget build(BuildContext context) => ClayCard(
@@ -373,7 +409,7 @@ class _PhotoCard extends StatelessWidget {
               child: AspectRatio(
                 aspectRatio: 16 / 10,
                 child: taken
-                    ? Image.asset(demoPhoto(kind), fit: BoxFit.cover)
+                    ? Image.asset(photo, fit: BoxFit.cover)
                     : ColoredBox(
                         color: A.sunk,
                         child: Column(
@@ -390,7 +426,7 @@ class _PhotoCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(10),
               child: GestureDetector(
-                onTap: onTap,
+                onTap: taken ? onNext : onTap,
                 child: Container(
                   width: 50,
                   height: 50,

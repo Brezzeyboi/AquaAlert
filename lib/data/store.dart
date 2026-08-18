@@ -109,7 +109,7 @@ class Store {
         fixer: false,
         xp: 1240,
         litres: 8600),
-    Persona('Kavita Sharma', 'kavita.sharma@gmail.com', 'Community member · no school',
+    Persona('Kavita Sharma', 'kavita.sharma@gmail.com', 'Community member',
         call: 'Kavita',
         place: 'Jaipur',
         joined: false,
@@ -117,7 +117,7 @@ class Store {
         fixer: false,
         xp: 2100,
         litres: 19400),
-    Persona('Anil Verma', 'head@maxfort.in', 'School head · closes reports',
+    Persona('Anil Verma', 'head@maxfort.in', 'School head',
         call: 'Anil',
         place: 'Pitampura, Delhi',
         joined: true,
@@ -320,12 +320,26 @@ class Store {
     return list.take(3).toList();
   }
 
+  /// Every class in the school, sections A to E of classes 9, 10 and 11 — the
+  /// three years the event runs for. Litres are stated per class rather than
+  /// generated at random, so the board is the same every time it is opened and a
+  /// demo can point at a row and talk about it.
   static final classes = <ClassRow>[
     const ClassRow('Class 10-B', 42800, 38),
     const ClassRow('Class 9-C', 39100, 41), // Rehan's, second and chasing
-    const ClassRow('Class 12-C', 31600, 34),
-    const ClassRow('Class 8-A', 28400, 39),
-    const ClassRow('Class 11-B', 22900, 36),
+    const ClassRow('Class 11-A', 36500, 35),
+    const ClassRow('Class 10-D', 33200, 40),
+    const ClassRow('Class 9-A', 31600, 37),
+    const ClassRow('Class 11-C', 29800, 33),
+    const ClassRow('Class 10-A', 27400, 39),
+    const ClassRow('Class 9-E', 25100, 36),
+    const ClassRow('Class 11-E', 23700, 34),
+    const ClassRow('Class 10-C', 22900, 38),
+    const ClassRow('Class 9-B', 20400, 40),
+    const ClassRow('Class 11-B', 18600, 35),
+    const ClassRow('Class 10-E', 16300, 37),
+    const ClassRow('Class 9-D', 14800, 39),
+    const ClassRow('Class 11-D', 12200, 32),
   ];
 
   /// Top few only, plus your own row. A named public ranking of every child
@@ -376,7 +390,7 @@ class Store {
     return notifs.where((n) => n.leak == null || seen.contains(n.leak)).toList();
   }
 
-  static const event = EventInfo('Water Week Challenge', '18–24 August', 'Trophy for the winning class', 12, 6);
+  static const event = EventInfo('Water Week Challenge', '18–24 August', 'Trophy for the winning class', 15, 6);
 
   /// Starts a session. There is no database in this prototype, so signing in is
   /// simply the app agreeing to call you by your name for as long as it is open.
