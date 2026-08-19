@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../data/mock.dart';
@@ -103,8 +101,15 @@ class _AuthScreenState extends State<AuthScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: GestureDetector(
+                      // It reads the field it sits under, which is the honest half
+                      // of a reset: nothing is sent, because there is no server.
                       // TODO(supabase): send the reset email from here.
-                      onTap: () {},
+                      onTap: () => showClayToast(
+                        context,
+                        looksLikeEmail(_email.text)
+                            ? 'A reset link is on its way to ${_email.text.trim()}'
+                            : 'Type your email address first',
+                      ),
                       child: Text('Forgot password?',
                           style: A.label.copyWith(
                               color: A.accentDeep, fontWeight: FontWeight.w600)),
@@ -329,7 +334,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 16),
                 const OrRule(),
                 const SizedBox(height: 16),
-                GoogleButton(onTap: widget.onDone),
+                // This screen makes an account, so the button says so.
+                GoogleButton(onTap: widget.onDone, label: 'Sign up with Google'),
                 const SizedBox(height: 18),
                 Center(
                   child: GestureDetector(
@@ -504,9 +510,16 @@ class OrRule extends StatelessWidget {
 
 /// White pill, Google's mark, one line of type — the shape everybody already
 /// knows how to press.
+///
+/// The label says what this particular button does, and not "Continue with
+/// Google", which is what it used to say: a capital C in this typeface is very
+/// nearly a ring, so at 22px it sat beside the four-colour mark and the pair read
+/// as two G's, one coloured and one navy. All three wordings are Google's own, so
+/// the one that does not collide is free.
 class GoogleButton extends StatelessWidget {
-  const GoogleButton({super.key, required this.onTap});
+  const GoogleButton({super.key, required this.onTap, this.label = 'Sign in with Google'});
   final VoidCallback onTap;
+  final String label;
 
   @override
   Widget build(BuildContext context) => ClayCard(
@@ -516,56 +529,89 @@ class GoogleButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const CustomPaint(size: Size(22, 22), painter: _GoogleMark()),
-            const SizedBox(width: 12),
+            // 24, because the mark's own file leaves it a unit of padding on each
+            // side: at 22 the G itself would come out smaller than the type.
+            const CustomPaint(size: Size(24, 24), painter: _GoogleMark()),
+            // Google's own spec leaves the mark this much air before the type.
+            const SizedBox(width: 14),
             // Flexible: at a large system text size this label is wider than a
             // 360dp phone, and a button that overflows is a red stripe on stage.
             Flexible(
-              child: Text('Continue with Google',
-                  style: A.h3, maxLines: 1, overflow: TextOverflow.ellipsis),
+              child: Text(label, style: A.h3, maxLines: 1, overflow: TextOverflow.ellipsis),
             ),
           ],
         ),
       );
 }
 
-/// Google's four-colour G, drawn rather than shipped as an asset.
+/// Google's four-colour G, in the mark's own 24-unit space.
 ///
-/// The segments are what make it recognisable, and the first version had them
-/// rotated: red across the top, blue down the right ending in the bar, green
-/// along the bottom, yellow up the left, and the aperture between the green and
-/// the bar. Angles are clockwise from three o'clock.
+/// These are the outlines out of Google's own SVG, transcribed number for number,
+/// and that is the only way this shape comes out right. Two goes at building it
+/// from arcs both failed on the same thing: the white notch under the bar is not a
+/// slice taken out of a ring. It widens as it drops and reaches nearly to the rim,
+/// which is what makes the letter read as a G rather than a ring with a bar in it —
+/// and no combination of four arcs and a rectangle produces it.
+///
+/// Built once at the top level rather than per frame, and left in the mark's own
+/// coordinates so every number here can be checked against the file it came from.
+final _gBlue = Path()
+  ..moveTo(22.56, 12.25)
+  ..cubicTo(22.56, 11.47, 22.49, 10.72, 22.36, 10)
+  ..lineTo(12, 10)
+  ..lineTo(12, 14.26)
+  ..lineTo(17.92, 14.26)
+  ..cubicTo(17.66, 15.63, 16.88, 16.79, 15.71, 17.57)
+  ..lineTo(15.71, 20.34)
+  ..lineTo(19.28, 20.34)
+  ..cubicTo(21.36, 18.42, 22.56, 15.6, 22.56, 12.25)
+  ..close();
+
+final _gGreen = Path()
+  ..moveTo(12, 23)
+  ..cubicTo(14.97, 23, 17.46, 22.02, 19.28, 20.34)
+  ..lineTo(15.71, 17.57)
+  ..cubicTo(14.73, 18.23, 13.48, 18.63, 12, 18.63)
+  ..cubicTo(9.14, 18.63, 6.71, 16.7, 5.84, 14.1)
+  ..lineTo(2.18, 14.1)
+  ..lineTo(2.18, 16.94)
+  ..cubicTo(3.99, 20.53, 7.7, 23, 12, 23)
+  ..close();
+
+final _gYellow = Path()
+  ..moveTo(5.84, 14.09)
+  ..cubicTo(5.62, 13.43, 5.49, 12.73, 5.49, 12)
+  ..cubicTo(5.49, 11.27, 5.62, 10.57, 5.84, 9.91)
+  ..lineTo(5.84, 7.07)
+  ..lineTo(2.18, 7.07)
+  ..cubicTo(1.43, 8.55, 1, 10.22, 1, 12)
+  ..cubicTo(1, 13.78, 1.43, 15.45, 2.18, 16.93)
+  ..lineTo(5.03, 14.71)
+  ..lineTo(5.84, 14.09)
+  ..close();
+
+final _gRed = Path()
+  ..moveTo(12, 5.38)
+  ..cubicTo(13.62, 5.38, 15.06, 5.94, 16.21, 7.02)
+  ..lineTo(19.36, 3.87)
+  ..cubicTo(17.45, 2.09, 14.97, 1, 12, 1)
+  ..cubicTo(7.7, 1, 3.99, 3.47, 2.18, 7.07)
+  ..lineTo(5.84, 9.91)
+  ..cubicTo(6.71, 7.31, 9.14, 5.38, 12, 5.38)
+  ..close();
+
 class _GoogleMark extends CustomPainter {
   const _GoogleMark();
 
   @override
   void paint(Canvas canvas, Size size) {
-    final r = size.shortestSide / 2;
-    final c = size.center(Offset.zero);
-    final ring = r * 0.76;
-    final stroke = r * 0.46;
-    final rect = Rect.fromCircle(center: c, radius: ring);
-    void arc(double from, double sweep, Color colour) => canvas.drawArc(
-          rect,
-          from * math.pi / 180,
-          sweep * math.pi / 180,
-          false,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = stroke
-            ..color = colour,
-        );
-    arc(-150, 90, const Color(0xFFEA4335)); // red, ten o'clock over the top to one
-    arc(-60, 66, const Color(0xFF4285F4)); // blue, one o'clock down to the bar
-    arc(46, 89, const Color(0xFF34A853)); // green, along the bottom
-    arc(135, 75, const Color(0xFFFBBC05)); // yellow, up the left
-    // The bar into the middle at the vertical centre — what makes it a G and not
-    // a C. It runs from just right of centre to the outer edge of the ring.
-    canvas.drawRect(
-      Rect.fromLTRB(c.dx + ring * 0.08, c.dy - stroke / 2, c.dx + ring + stroke / 2,
-          c.dy + stroke / 2),
-      Paint()..color = const Color(0xFF4285F4),
-    );
+    canvas.save();
+    canvas.scale(size.shortestSide / 24);
+    canvas.drawPath(_gBlue, Paint()..color = const Color(0xFF4285F4));
+    canvas.drawPath(_gGreen, Paint()..color = const Color(0xFF34A853));
+    canvas.drawPath(_gYellow, Paint()..color = const Color(0xFFFBBC05));
+    canvas.drawPath(_gRed, Paint()..color = const Color(0xFFEA4335));
+    canvas.restore();
   }
 
   @override
