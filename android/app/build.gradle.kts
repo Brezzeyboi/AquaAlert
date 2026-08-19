@@ -47,3 +47,11 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // FileProvider, for handing the share sheet a content:// URI to the rendered
+    // card. Android has refused file:// URIs in an intent since 7.0. Stated
+    // explicitly rather than leaned on: it arrives transitively through the Flutter
+    // embedding today, and a transitive dependency is not a promise.
+    implementation("androidx.core:core:1.13.1")
+}

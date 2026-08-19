@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The one directory the share sheet may read out of: the cache, so the phone
+     clears it on its own and a shared card never becomes litter. -->
+<paths>
+    <cache-path name="share" path="share/" />
+</paths>

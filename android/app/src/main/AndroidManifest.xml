@@ -30,6 +30,18 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Hands the share sheet the rendered card as a content:// URI. Android has
+             refused file:// URIs in an intent since 7.0, and the read permission is
+             granted per-share by the intent flag rather than to the world. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/share_paths" />
+        </provider>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
