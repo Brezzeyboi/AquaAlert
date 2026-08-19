@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../data/mock.dart';
 import '../data/store.dart';
 import '../theme.dart';
 import '../widgets/clay.dart';
 import '../widgets/common.dart';
+import 'auth.dart' show AuthField;
 
 /// Only switches that actually do something. A settings screen full of dead
 /// toggles is the fastest way to lose a judge's trust — so the motion switch
@@ -17,7 +19,124 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final _notify = {'status': true, 'near': true, 'event': false};
+  Future<void> _rename() async {
+    final field = TextEditingController(text: Store.fullName);
+    await claySheet<void>(
+      context,
+      ClayCard(
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Center(child: SheetGrip()),
+            Text('Your name', style: A.h2),
+            const SizedBox(height: 4),
+            Text('What the app calls you, and what your reports are signed with.',
+                style: A.tiny),
+            const SizedBox(height: 14),
+            AuthField(
+              controller: field,
+              icon: Icons.person_outline_rounded,
+              hint: 'Your name',
+              caps: TextCapitalization.words,
+            ),
+            const SizedBox(height: 16),
+            ClayButton(
+              label: 'Save',
+              onTap: () {
+                setState(() => Store.rename(field.text));
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+    field.dispose();
+  }
+
+  /// One sheet for the rows that exist to tell you something — privacy, storage,
+  /// about. The content is the function: a chevron that opens nothing is the part
+  /// a judge notices.
+  Future<void> _tell(String title, List<String> lines) => claySheet<void>(
+        context,
+        ClayCard(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Center(child: SheetGrip()),
+              Text(title, style: A.h2),
+              const SizedBox(height: 12),
+              for (final line in lines) ...[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 6),
+                      child: Icon(Icons.circle, size: 5, color: A.accent),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(line, style: A.bodySoft.copyWith(fontSize: 14))),
+                  ],
+                ),
+                const SizedBox(height: 9),
+              ],
+              const SizedBox(height: 8),
+              ClayButton(
+                label: 'Got it',
+                secondary: true,
+                onTap: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        ),
+      );
+
+  /// Signing out drops the whole session, so it asks first. Everything above the
+  /// gate goes with it — the settings screen this button lives on included, which
+  /// is why the routes are popped before the session is flipped.
+  Future<void> _signOut() => claySheet<void>(
+        context,
+        ClayCard(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SheetGrip(),
+              const Medallion(Icons.logout_rounded, size: 56, color: A.amber),
+              const SizedBox(height: 14),
+              Text('Sign out?', style: A.h2),
+              const SizedBox(height: 6),
+              Text(
+                'The reports stay where they are. You will come back to the '
+                'sign-in screen.',
+                style: A.bodySoft.copyWith(fontSize: 14),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 18),
+              ClayButton(
+                label: 'Sign out',
+                icon: Icons.logout_rounded,
+                color: A.amber,
+                onTap: () {
+                  Navigator.of(context).pop(); // the sheet
+                  Navigator.of(context).popUntil((r) => r.isFirst);
+                  Store.signOut();
+                },
+              ),
+              const SizedBox(height: 10),
+              ClayButton(
+                label: 'Stay signed in',
+                secondary: true,
+                onTap: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        ),
+      );
 
   Future<void> _editGoal() async {
     var goal = Store.monthlyGoal.toDouble();
@@ -79,6 +198,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 28),
                 children: [
                   ClayCard(
+                    onTap: _rename,
                     padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
                     child: Row(
                       children: [
@@ -151,32 +271,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
                     child: Column(
                       children: [
+                        // These gate the feed itself, so turning one off takes its
+                        // notices out of the bell — a switch that only moves is
+                        // the thing this screen refuses to have.
                         for (final e in const [
-                          ('status', 'Report status changes'),
-                          ('near', 'Leaks reported near me'),
-                          ('event', 'Events and results'),
+                          (NotifKind.status, 'Report status changes'),
+                          (NotifKind.near, 'Leaks reported near me'),
+                          (NotifKind.event, 'Events and results'),
                         ])
                           _ToggleRow(
                             label: e.$2,
-                            value: _notify[e.$1]!,
-                            onChanged: (v) => setState(() => _notify[e.$1] = v),
-                            last: e.$1 == 'event',
+                            value: Store.notify[e.$1]!,
+                            onChanged: (v) => setState(() {
+                              Store.notify[e.$1] = v;
+                              Store.touch();
+                            }),
+                            last: e.$1 == NotifKind.event,
                           ),
                       ],
                     ),
                   ),
-                  const _Head('Your role'),
-                  ClayCard(
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
-                    child: _ToggleRow(
-                      label: 'Fixer mode',
-                      sub: 'For anyone who actually goes and fixes leaks: close and start '
-                          'other people’s reports',
-                      value: Store.isFixer,
-                      onChanged: (v) => setState(() => Store.isFixer = v),
-                      last: true,
+                  // Only for somebody who joined one. There is no fixer on a
+                  // street: a community report is closed by whoever filed it, and
+                  // this switch is the caretaker or the head inside a building.
+                  if (Store.joined) ...[
+                    const _Head('Your role'),
+                    ClayCard(
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+                      child: _ToggleRow(
+                        label: 'Fixer mode',
+                        sub: 'For whoever actually mends things in ${Store.shortName}: '
+                            'close and start other people’s reports inside it. Street '
+                            'reports are never yours to close.',
+                        value: Store.isFixer,
+                        onChanged: (v) => setState(() {
+                          Store.isFixer = v;
+                          Store.touch();
+                        }),
+                        last: true,
+                      ),
                     ),
-                  ),
+                  ],
                   const _Head('Monthly goal'),
                   ClayCard(
                     padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
@@ -218,17 +353,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   const _Head('Language'),
-                  const ClayCard(
-                    padding: EdgeInsets.symmetric(horizontal: 18, vertical: 4),
-                    child: _Row('English', value: 'हिन्दी coming soon', last: true),
+                  ClayCard(
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+                    child: _Row(
+                      'English',
+                      value: 'हिन्दी coming soon',
+                      last: true,
+                      onTap: () => _tell('Language', const [
+                        'AquaAlert is in English for this build.',
+                        'Hindi is next: the screens are already written so that every '
+                            'word comes from one place, which is what makes a second '
+                            'language a translation rather than a rebuild.',
+                        'A leak report itself needs no language — the photo and the '
+                            'place do the work.',
+                      ]),
+                    ),
                   ),
                   const _Head('Privacy'),
-                  const ClayCard(
-                    padding: EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+                  ClayCard(
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
                     child: Column(
                       children: [
-                        _Row('Who can see my name', sub: 'Your school only', chevron: true),
-                        _Row('What AquaAlert stores about you', chevron: true, last: true),
+                        _Row('Who can see my name',
+                            sub: 'Your school only',
+                            chevron: true,
+                            onTap: () => _tell('Who can see your name', const [
+                                  'Your class leaderboard shows your name to people in '
+                                      'your school.',
+                                  'A community report shows the name you sign it with to '
+                                      'anyone who can see the report.',
+                                  'The community board shows the town you report from, '
+                                      'never your class or your school.',
+                                  'Nothing you file inside a school ever leaves it.',
+                                ])),
+                        _Row('What AquaAlert stores about you',
+                            chevron: true,
+                            last: true,
+                            onTap: () => _tell('What AquaAlert stores', const [
+                                  'Your name, your email and the litres you have saved.',
+                                  'The reports you file: the words, the picture, and the '
+                                      'place — a street location for a community report, '
+                                      'and no location at all for one inside a school.',
+                                  'No contacts, no browsing, no background location.',
+                                  'This build keeps all of it in the phone’s memory '
+                                      'and forgets it when the app closes. There is no '
+                                      'server yet.',
+                                ])),
                       ],
                     ),
                   ),
@@ -237,9 +407,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
                     child: Column(
                       children: [
-                        const _Row('About AquaAlert', sub: 'Version 1.0', chevron: true),
+                        _Row('About AquaAlert',
+                            sub: 'Version 1.0',
+                            chevron: true,
+                            onTap: () => _tell('About AquaAlert', const [
+                                  'Spot the Leak. Save the Water.',
+                                  'Anyone can report a leak anywhere. The people nearby '
+                                      'confirm it, and whoever can fix it does — there is '
+                                      'no authority in the middle.',
+                                  'Built for UN Sustainable Development Goal 6: clean '
+                                      'water and sanitation for everyone.',
+                                  'Version 1.0 — a prototype. No database, no network, '
+                                      'nothing leaves the phone.',
+                                ])),
                         GestureDetector(
-                          onTap: () {},
+                          onTap: _signOut,
                           behavior: HitTestBehavior.opaque,
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 14),
@@ -247,6 +429,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               children: [
                                 Text('Sign out',
                                     style: A.h3.copyWith(color: A.amber, fontSize: 15.5)),
+                                const Spacer(),
+                                const Icon(Icons.logout_rounded, size: 18, color: A.amber),
                               ],
                             ),
                           ),
@@ -320,28 +504,34 @@ class _ToggleRow extends StatelessWidget {
 }
 
 class _Row extends StatelessWidget {
-  const _Row(this.label, {this.value, this.sub, this.chevron = false, this.last = false});
+  const _Row(this.label,
+      {this.value, this.sub, this.chevron = false, this.last = false, this.onTap});
   final String label;
   final String? value, sub;
   final bool chevron, last;
+  final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) => _Shell(
-        last: last,
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: A.body.copyWith(fontWeight: FontWeight.w600)),
-                  if (sub != null) ...[const SizedBox(height: 1), Text(sub!, style: A.tiny)],
-                ],
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: _Shell(
+          last: last,
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, style: A.body.copyWith(fontWeight: FontWeight.w600)),
+                    if (sub != null) ...[const SizedBox(height: 1), Text(sub!, style: A.tiny)],
+                  ],
+                ),
               ),
-            ),
-            if (value != null) Text(value!, style: A.tiny),
-            if (chevron) const Icon(Icons.chevron_right_rounded, color: A.inkSoft),
-          ],
+              if (value != null) Text(value!, style: A.tiny),
+              if (chevron) const Icon(Icons.chevron_right_rounded, color: A.inkSoft),
+            ],
+          ),
         ),
       );
 }

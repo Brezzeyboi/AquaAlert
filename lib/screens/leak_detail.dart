@@ -173,9 +173,10 @@ class _LeakDetailScreenState extends State<LeakDetailScreen> {
                       ),
                     ],
                   ),
-                  // Only somebody who fixes things says work has started, and
-                  // only while there is still work to do.
-                  if (Store.isFixer && leak.status != Status.fixed &&
+                  // Saying work has started is the same authority as closing it:
+                  // the head for something inside the school, the reporter for
+                  // their own. Nobody has it over a street somebody else reported.
+                  if (Store.canClose(leak) && leak.status != Status.fixed &&
                       leak.status != Status.inProgress) ...[
                     const SizedBox(height: 12),
                     ClayButton(

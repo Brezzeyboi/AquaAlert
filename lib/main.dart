@@ -40,16 +40,20 @@ class _Root extends StatefulWidget {
 
 class _RootState extends State<_Root> {
   bool _splash = true;
-  bool _in = false;
 
   @override
-  Widget build(BuildContext context) => _Swap(
-        index: _splash ? 0 : (_in ? 2 : 1),
-        child: _splash
-            ? Splash(onDone: () => setState(() => _splash = false))
-            : _in
-                ? const Shell()
-                : AuthScreen(onDone: () => setState(() => _in = true)),
+  Widget build(BuildContext context) => ValueListenableBuilder<bool>(
+        // Signing out happens four screens down, inside settings, so the gate
+        // watches the session rather than being told about it.
+        valueListenable: Store.session,
+        builder: (context, inApp, __) => _Swap(
+          index: _splash ? 0 : (inApp ? 2 : 1),
+          child: _splash
+              ? Splash(onDone: () => setState(() => _splash = false))
+              : inApp
+                  ? const Shell()
+                  : AuthScreen(onDone: () => Store.session.value = true),
+        ),
       );
 }
 
@@ -211,10 +215,15 @@ class _ShellState extends State<Shell> {
             ),
             Align(
               alignment: Alignment.bottomCenter,
-              child: _Nav(
-                tab: _tab,
-                onTab: _go,
-                onReport: () => _push(const ReportChooser()),
+              // The bell's dot comes out of the store, so the bar redraws when
+              // the feed is read rather than only when a tab is tapped.
+              child: ValueListenableBuilder<int>(
+                valueListenable: Store.revision,
+                builder: (_, __, ___) => _Nav(
+                  tab: _tab,
+                  onTab: _go,
+                  onReport: () => _push(const ReportChooser()),
+                ),
               ),
             ),
           ],
@@ -390,11 +399,10 @@ class _Nav extends StatelessWidget {
                                                       size: 25,
                                                       color: Color.lerp(A.inkSoft, A.accent, v)),
                                                   // Unread lives on the bell and
-                                                  // nowhere else; the count is on
-                                                  // the list itself.
-                                                  if (i == 2 &&
-                                                      tab != 2 &&
-                                                      Store.feed.isNotEmpty)
+                                                  // nowhere else, and it is the
+                                                  // store's count — read them
+                                                  // all and it goes out.
+                                                  if (i == 2 && tab != 2 && Store.unread > 0)
                                                     Positioned(
                                                       right: -1,
                                                       top: 0,

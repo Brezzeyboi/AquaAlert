@@ -86,14 +86,21 @@ class Store {
   static String get userLine =>
       joined ? (userClass.isEmpty ? shortName : userClass) : userPlace;
 
-  /// Whether this account can close *other people's* reports. Off by default,
-  /// because the ordinary user of a community app is a reporter, not a fixer. A
-  /// anyone who actually goes and fixes leaks turns it on.
+  /// Whether this account can close reports inside its own institution. Off by
+  /// default, because the ordinary user of a community app is a reporter, not a
+  /// fixer, and it means nothing at all without an institution to be one for.
   static bool isFixer = false;
 
-  /// You can always close your own report — you are the one who can see whether
-  /// the water stopped.
-  static bool canClose(Leak leak) => isFixer || leak.reporter == userName;
+  /// Who may mark a report fixed.
+  ///
+  /// Your own, always: you are the one who can go back and see whether the water
+  /// stopped. Beyond that the only authority in AquaAlert is inside an institution
+  /// — a school head is the person who actually gets the corridor mended, and that
+  /// is exactly where their say ends. A street has no head, so a community report
+  /// can only be closed by whoever filed it, and everybody else says "I've seen it
+  /// too" instead. That is the whole point of there being no admin.
+  static bool canClose(Leak leak) =>
+      leak.reporter == userName || (isFixer && joined && leak.scope != Scope.community);
 
   /// The accounts already signed in on this phone, in the order the sign-in
   /// screen lists them. Three, because the app has exactly three kinds of person
@@ -182,7 +189,6 @@ class Store {
       status: Status.overdue,
       reporter: 'Aarav S.',
       description: 'Left tap will not close fully. Water runs all day.',
-      photo: 'assets/demo/tap.jpg',
     ),
     Leak(
       id: 'AA-117',
@@ -199,6 +205,8 @@ class Store {
       lng: 77.1338,
       description: 'The street tank overflows every morning around 7.',
     ),
+    // No photo, like everything else filed inside the school: the words are the
+    // report in there. See [Leak.photo].
     Leak(
       id: 'AA-116',
       confirms: 3,
@@ -210,7 +218,6 @@ class Store {
       status: Status.fixed,
       reporter: 'Rehan',
       description: 'Joint had split. Maintenance replaced it.',
-      photo: 'assets/demo/pipe.jpg',
     ),
     Leak(
       id: 'AA-115',
@@ -376,21 +383,53 @@ class Store {
   ];
 
   static const notifs = <Notif>[
+    Notif('Leak reported near you', 'Hand pump running in Gali No. 4 — 400m away.', '40m',
+        Status.reported, 'AA-111', NotifKind.near),
     Notif('Your report was fixed', 'AA-116 — burst pipe outside the lab. 1,600 litres saved.', '2h', Status.fixed, 'AA-116'),
     Notif('Still not fixed', 'AA-118 has been open for six days. Two people have seen it.', '5h', Status.overdue, 'AA-118'),
     Notif('Maintenance started', 'AA-117 — overflowing tank on Nehru Road.', 'Yesterday', Status.inProgress, 'AA-117'),
     Notif('Report confirmed', 'Two people nearby have seen AA-118 too. +20 XP.', '2 days', Status.reported, 'AA-118'),
+    Notif('Water Week Challenge is live', 'Six days left. Your class is second by 3,700 litres.',
+        '2 days', Status.reported, null, NotifKind.event),
   ];
+
+  /// Which notices this account wants at all — the three switches in settings,
+  /// held here rather than in that screen so turning one off actually empties a
+  /// row out of the feed.
+  static final notify = <NotifKind, bool>{
+    NotifKind.status: true,
+    NotifKind.near: true,
+    NotifKind.event: false,
+  };
 
   /// The notices this account may read. A notice about a report it cannot see
   /// would tell an outsider exactly what a school filed, which is the leak the
   /// scope rule exists to stop.
   static List<Notif> get feed {
     final seen = visible.map((l) => l.id).toSet();
-    return notifs.where((n) => n.leak == null || seen.contains(n.leak)).toList();
+    return notifs
+        .where((n) => notify[n.kind]!)
+        .where((n) => n.leak == null || seen.contains(n.leak))
+        .toList();
+  }
+
+  /// How many of the newest notices have not been read yet. It lives here and
+  /// not in the notifications screen because two widgets need the one fact: that
+  /// screen frosts the unread cards, and the nav bell draws the dot. With the
+  /// count private to the screen, marking everything read left the dot lit.
+  static int _unread = 2;
+  static int get unread => math.min(_unread, feed.length);
+  static void readAll() {
+    _unread = 0;
+    touch();
   }
 
   static const event = EventInfo('Water Week Challenge', '18–24 August', 'Trophy for the winning class', 15, 6);
+
+  /// Whether anybody is signed in. The gate at the root of the app watches this,
+  /// so signing out is one assignment from wherever the button happens to be
+  /// rather than a callback threaded down through four widgets.
+  static final session = ValueNotifier<bool>(false);
 
   /// Starts a session. There is no database in this prototype, so signing in is
   /// simply the app agreeing to call you by your name for as long as it is open.
@@ -405,6 +444,35 @@ class Store {
     isFixer = false;
     userClass = '';
     userPlace = 'Delhi';
+  }
+
+  /// Ends it. The reports stay — they belong to the neighbourhood, not to the
+  /// phone — and the next person to sign in comes to a feed they have not read.
+  static void signOut() {
+    _unread = 2;
+    session.value = false;
+    touch();
+  }
+
+  /// What the app calls you, changed from settings. Both names move together, or
+  /// the greeting and the avatar start disagreeing — and the reports you signed
+  /// move with them, since a report is yours by carrying your name and nothing
+  /// else. Rename yourself without that and your own list goes empty.
+  static void rename(String name) {
+    final clean = name.trim();
+    if (clean.isEmpty) return;
+    final was = _call;
+    fullName = clean;
+    // What it calls you only changes when the new name stops containing it:
+    // "Mohd Rehan" is Rehan, so opening that sheet and saving it untouched must
+    // not start greeting him as Mohd. A name it has never seen falls back to the
+    // first word, which is all a typed string gives you.
+    final words = clean.split(RegExp(r'\s+'));
+    _call = words.contains(was) ? was : words.first;
+    for (final l in leaks) {
+      if (l.reporter == was) l.reporter = _call;
+    }
+    touch();
   }
 
   static String userEmail = 'rehan@example.com';

@@ -119,6 +119,11 @@ void main() {
     expect(Store.visible.length, Store.leaks.length);
     expect(Store.isFixer, isTrue);
     expect(Store.canClose(inside.first), isTrue);
+    // But his say stops at the school gate. A street is nobody's to close but the
+    // person who reported it — there is no authority over a community report.
+    final street = Store.leaks.firstWhere(
+        (l) => l.scope == Scope.community && l.reporter != Store.userName);
+    expect(Store.canClose(street), isFalse);
 
     Store.use(Store.saved.first); // the student the rest of the fixture assumes
     expect(Store.isFixer, isFalse);
@@ -237,6 +242,89 @@ void main() {
       expect(v.of(Store.originLat + 0.005, Store.originLng).dy, lessThan(me.dy));
       expect(v.of(Store.originLat, Store.originLng + 0.005).dx, greaterThan(me.dx));
       expect(v.at(725, 0).dx, closeTo(size.width, 0.01));
+    });
+  });
+
+  /// A report is yours by carrying your name, so changing your name has to take
+  /// them with it — otherwise renaming yourself in settings quietly empties "Your
+  /// reports" and takes away the button to close what you filed.
+  test('renaming yourself keeps the reports you filed', () {
+    Store.use(Store.saved.first);
+    final mine = Store.leaks.where((l) => l.reporter == Store.userName).length;
+    expect(mine, greaterThan(0));
+
+    Store.rename('Zaid Khan');
+    expect(Store.fullName, 'Zaid Khan');
+    expect(Store.userName, 'Zaid'); // a name it has never seen: the first word
+    expect(Store.leaks.where((l) => l.reporter == 'Zaid').length, mine);
+    expect(Store.canClose(Store.leaks.firstWhere((l) => l.reporter == 'Zaid')), isTrue);
+
+    // And what it calls you survives a longer name that still contains it, which
+    // is what stops "Mohd Rehan" being saved back as Mohd.
+    Store.rename('Mohd Zaid Khan');
+    expect(Store.userName, 'Zaid');
+    expect(Store.leaks.where((l) => l.reporter == 'Zaid').length, mine);
+
+    Store.rename('Rehan'); // re-sign them, then put the fixture's account back
+    Store.use(Store.saved.first);
+    expect(Store.userName, 'Rehan');
+    expect(Store.leaks.where((l) => l.reporter == 'Rehan').length, mine);
+  });
+
+  /// A photograph taken inside a school is a photograph of a school. The rule sits
+  /// on [Leak.photo] rather than on the screens, so this checks the data as well as
+  /// a report filed with a picture attached anyway.
+  test('nothing filed inside an institution carries a photo', () {
+    for (final l in Store.leaks.where((l) => l.scope != Scope.community)) {
+      expect(l.photo, isNull, reason: '${l.id} is inside a building');
+    }
+    // At least one street report has one, or this test would pass on an empty rule.
+    expect(Store.leaks.any((l) => l.scope == Scope.community && l.photo != null), isTrue);
+
+    final filed = Store.file(
+      scope: Scope.school,
+      title: 'Tap running',
+      place: 'Block C',
+      litresPerDay: 100,
+      photo: 'assets/demo/tap.jpg', // handed one anyway
+    );
+    expect(filed.photo, isNull);
+    Store.leaks.remove(filed);
+  });
+
+  group('the notification feed', () {
+    test('marking all read clears the count the nav bell draws from', () {
+      Store.notify[NotifKind.status] = true;
+      Store.notify[NotifKind.near] = true;
+      expect(Store.unread, greaterThan(0));
+      Store.readAll();
+      expect(Store.unread, 0);
+      // Signing out re-arms it, so the next person is not handed a read feed.
+      Store.signOut();
+      expect(Store.unread, greaterThan(0));
+    });
+
+    test('a switch that is off takes its notices out of the feed', () {
+      Store.notify[NotifKind.status] = true;
+      Store.notify[NotifKind.near] = true;
+      Store.notify[NotifKind.event] = false;
+      final on = Store.feed.length;
+      expect(Store.feed.any((n) => n.kind == NotifKind.near), isTrue);
+      expect(Store.feed.any((n) => n.kind == NotifKind.event), isFalse);
+      Store.notify[NotifKind.near] = false;
+      expect(Store.feed.length, lessThan(on));
+      expect(Store.feed.any((n) => n.kind == NotifKind.near), isFalse);
+      Store.notify[NotifKind.near] = true; // the rest of the suite reads the feed
+    });
+
+    test('unread can never outrun the feed it points at', () {
+      Store.notify[NotifKind.status] = false;
+      Store.notify[NotifKind.near] = false;
+      Store.notify[NotifKind.event] = false;
+      expect(Store.feed, isEmpty);
+      expect(Store.unread, 0);
+      Store.notify[NotifKind.status] = true;
+      Store.notify[NotifKind.near] = true;
     });
   });
 }

@@ -7,51 +7,55 @@ import '../data/store.dart';
 import '../theme.dart';
 import '../widgets/clay.dart';
 import '../widgets/common.dart';
+import 'leak_detail.dart';
 
 /// Unread notifications are frosted glass, read ones are plain clay. That is
 /// the whole read/unread language — no dots, no counters, no bold text.
-class NotificationsScreen extends StatefulWidget {
+///
+/// The count itself belongs to the store: the bell in the nav bar draws a dot
+/// from the same number, and while this screen owned it privately, marking
+/// everything read here left that dot lit.
+class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
 
   @override
-  State<NotificationsScreen> createState() => _NotificationsScreenState();
-}
-
-class _NotificationsScreenState extends State<NotificationsScreen> {
-  int _unread = 2;
-
-  @override
-  Widget build(BuildContext context) {
-    // Only what this account is allowed to read: a notice about a report inside a
-    // school never reaches somebody outside it.
-    final feed = Store.feed;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 152),
-      children: [
-        Row(
-          children: [
-            Expanded(child: Text('Notifications', style: A.h1)),
-            if (_unread > 0)
-              GestureDetector(
-                onTap: () => setState(() => _unread = 0),
-                child: Text('Mark all read',
-                    style: A.label.copyWith(color: A.accentDeep, fontWeight: FontWeight.w600)),
+  Widget build(BuildContext context) => ValueListenableBuilder<int>(
+        valueListenable: Store.revision,
+        builder: (context, _, __) {
+          // Only what this account is allowed to read, and only the kinds it asked
+          // for in settings: a notice about a report inside a school never reaches
+          // somebody outside it.
+          final feed = Store.feed;
+          final unread = Store.unread;
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 152),
+            children: [
+              Row(
+                children: [
+                  Expanded(child: Text('Notifications', style: A.h1)),
+                  if (unread > 0)
+                    GestureDetector(
+                      onTap: Store.readAll,
+                      child: Text('Mark all read',
+                          style: A.label
+                              .copyWith(color: A.accentDeep, fontWeight: FontWeight.w600)),
+                    ),
+                ],
               ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        if (feed.isEmpty)
-          const EmptyState(Icons.notifications_none_rounded, 'All quiet',
-              'You will hear from us when a report you follow changes.')
-        else
-          for (var i = 0; i < feed.length; i++) ...[
-            // Staggered in, like every other list in the app.
-            Pop(_Card(feed[i], unread: i < _unread), index: i),
-            const SizedBox(height: 12),
-          ],
-      ],
-    );
-  }
+              const SizedBox(height: 16),
+              if (feed.isEmpty)
+                const EmptyState(Icons.notifications_none_rounded, 'All quiet',
+                    'You will hear from us when a report you follow changes.')
+              else
+                for (var i = 0; i < feed.length; i++) ...[
+                  // Staggered in, like every other list in the app.
+                  Pop(_Card(feed[i], unread: i < unread), index: i),
+                  const SizedBox(height: 12),
+                ],
+            ],
+          );
+        },
+      );
 }
 
 class _Card extends StatelessWidget {
@@ -101,7 +105,7 @@ class _Card extends StatelessWidget {
 
     // Marking all read turns glass into clay, so it cross-fades rather than
     // snapping — the whole read/unread language is that one change of material.
-    return AnimatedSwitcher(
+    final card = AnimatedSwitcher(
       duration: const Duration(milliseconds: 280),
       child: KeyedSubtree(
         key: ValueKey(unread),
@@ -126,6 +130,18 @@ class _Card extends StatelessWidget {
               )
             : ClayCard(padding: EdgeInsets.zero, child: body),
       ),
+    );
+
+    // A notice about a report opens that report. One about the event has nowhere
+    // to go, so it does not pretend to be tappable.
+    final leak = Store.visible.where((l) => l.id == n.leak).firstOrNull;
+    if (leak == null) return card;
+    return GestureDetector(
+      onTap: () => Navigator.of(context).push(
+        A.route(LeakDetailScreen(leak)),
+      ),
+      behavior: HitTestBehavior.opaque,
+      child: card,
     );
   }
 }

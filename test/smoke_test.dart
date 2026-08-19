@@ -1,3 +1,4 @@
+import 'package:aquaalert/data/store.dart';
 import 'package:aquaalert/main.dart';
 import 'package:aquaalert/screens/splash.dart';
 import 'package:aquaalert/theme.dart';
@@ -10,9 +11,10 @@ import 'package:flutter_test/flutter_test.dart';
 /// One pass through the whole app. The tank animates forever, so this pumps
 /// fixed durations — pumpAndSettle would never return.
 void main() {
-  /// A phone, not the 800x600 default: these screens are authored for a tall
-  /// narrow window and half of what is asserted below lives past 600px.
-  setUp(() {});
+  /// The store is static and outlives a test, so the session has to be put back
+  /// between them — otherwise the second test boots straight past the sign-in
+  /// screen the first one came through.
+  setUp(() => Store.session.value = false);
 
   Future<void> phone(WidgetTester tester) async {
     tester.view.physicalSize = const Size(1080, 2400);
@@ -25,7 +27,12 @@ void main() {
   Future<void> signIn(WidgetTester tester) async {
     await tester.tap(find.text('Mohd Rehan'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
+    // The shared-axis swap into the shell runs 620ms and starts in a post-frame
+    // callback, so its ticker only takes its zero on the *next* frame: one long
+    // pump leaves the whole shell still shifted 115px to the right, and every tap
+    // on the nav lands beside the icon it was aiming at.
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump(const Duration(milliseconds: 700));
   }
 
   /// The splash owns the first 2.2 seconds. Tap through it, which is also the
@@ -183,6 +190,51 @@ void main() {
     await tester.tap(find.byIcon(Icons.notifications_none_rounded).first);
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.textContaining('AA-118'), findsNothing);
+  });
+
+  /// The bell's dot and the frosted cards used to be two different counts — the
+  /// screen owned one privately — so reading everything left the dot lit.
+  testWidgets('reading the notifications puts the bell out', (tester) async {
+    await boot(tester);
+    expect(Store.unread, greaterThan(0));
+
+    await tester.tap(find.byIcon(Icons.notifications_none_rounded).first);
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('Mark all read'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(Store.unread, 0);
+    expect(find.text('Mark all read'), findsNothing);
+
+    // Off the tab and back: the dot is drawn from the store now, so it is gone.
+    await tester.tap(find.byIcon(Icons.home_rounded));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('saved this month'), findsOneWidget);
+  });
+
+  /// Sign out is four screens deep and the gate is at the root, so this is the
+  /// one path that proves the session, not a callback, is what closes the app.
+  testWidgets('signing out from settings goes back to the sign-in screen',
+      (tester) async {
+    await boot(tester);
+    await tester.tap(find.byIcon(Icons.person_rounded));
+    await tester.pump(const Duration(milliseconds: 400));
+    await open(tester, find.byIcon(Icons.settings_outlined));
+    expect(find.text('Settings'), findsOneWidget);
+
+    await reach(tester, find.text('Sign out'));
+    // A sheet is a route: it needs the frame that starts it and the frame that
+    // runs it out, or its button is still below the bottom of the screen.
+    await open(tester, find.text('Sign out'));
+    expect(find.text('Sign out?'), findsOneWidget);
+    await tester.tap(find.text('Sign out').last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump(const Duration(milliseconds: 800));
+
+    expect(find.text('Welcome back'), findsOneWidget);
+    expect(Store.session.value, isFalse);
+    // And the next person is not handed a feed somebody else has read.
+    expect(Store.unread, greaterThan(0));
   });
 
   /// A fast tap used to be invisible: down and up land in the same frame, so the

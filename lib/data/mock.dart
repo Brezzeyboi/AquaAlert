@@ -43,13 +43,19 @@ class Leak {
     required this.status,
     required this.reporter,
     this.description = '',
-    this.photo,
+    String? photo,
     this.lat,
     this.lng,
     this.confirms = 0,
-  });
+  }) : _photo = photo;
 
-  final String id, title, place, reporter, description;
+  final String id, title, place, description;
+
+  /// Who filed it. Not final: renaming yourself in settings re-signs what you
+  /// filed, because "your reports" is worked out by matching this against your
+  /// name — leave it alone and your own list empties itself and the button to
+  /// close your own report disappears.
+  String reporter;
   final Scope scope;
   final int litresPerDay, daysOpen;
 
@@ -62,7 +68,19 @@ class Leak {
   /// asset stands in for Supabase storage; the lists and the detail screen only
   /// ever ask "is there a photo and where", so swapping in a network URL later
   /// is a one-line change.
-  final String? photo;
+  final String? _photo;
+
+  /// The picture — and only ever for a community report.
+  ///
+  /// A photograph taken inside a school is a photograph *of* a school: its
+  /// corridors, its washrooms, and the children in them. Inside a building the
+  /// words are the report, which is why the form does not offer a camera there.
+  /// The rule lives on this one getter rather than in every list, card, share
+  /// sheet and detail screen that draws a thumbnail, so a fixture or a later
+  /// writer cannot hand one out by accident. Same reason a campus report carries
+  /// no coordinates: what keeps the picture off the screen is that there is
+  /// nothing to fetch, not a filter somebody has to remember.
+  String? get photo => scope == Scope.community ? _photo : null;
   Status status;
 
   /// How many people nearby have said "yes, this is real". AquaAlert has no
@@ -141,8 +159,14 @@ class Student {
   final String name, className;
 }
 
+/// The three things AquaAlert tells you about, and the three switches in
+/// settings. A notice carries its kind so a switch that is off actually silences
+/// something instead of just moving.
+enum NotifKind { status, near, event }
+
 class Notif {
-  const Notif(this.title, this.body, this.ago, this.status, [this.leak]);
+  const Notif(this.title, this.body, this.ago, this.status,
+      [this.leak, this.kind = NotifKind.status]);
   final String title, body, ago;
   final Status status;
 
@@ -150,6 +174,8 @@ class Notif {
   /// report has no business showing up for somebody outside that school, so the
   /// feed drops any notice whose report the account cannot see.
   final String? leak;
+
+  final NotifKind kind;
 }
 
 /// An account already signed in on this phone. A prototype has no database, so

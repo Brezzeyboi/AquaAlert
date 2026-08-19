@@ -79,7 +79,12 @@ class _ReportFormState extends State<ReportForm> {
   String get _photoPath => demoShots[_shot % demoShots.length];
 
   bool get _campus => _scope != Scope.community;
-  bool get _canPhoto => _scope != Scope.school;
+
+  /// No camera inside a building, school or college alike: a picture taken in
+  /// there is a picture of the place and the people in it. [Leak.photo] enforces
+  /// the same rule on the data, so this is only about not asking for something
+  /// that would be dropped.
+  bool get _canPhoto => !_campus;
   bool get _canSend =>
       _kind != null && (_campus ? _where.text.trim().isNotEmpty || _room != null : _located || _where.text.trim().isNotEmpty);
 
@@ -176,10 +181,14 @@ class _ReportFormState extends State<ReportForm> {
                     ),
                     const SizedBox(height: 14),
                   ],
-                  if (_scope == Scope.school) ...[
-                    const _Note('Only your school sees this one',
+                  if (_campus) ...[
+                    _Note(
+                        _scope == Scope.school
+                            ? 'Only your school sees this one'
+                            : 'Only your college sees this one',
                         'It goes to ${Store.shortName} — its students and its office, '
-                            'nobody outside. Photos are off inside school, so use words.'),
+                            'nobody outside. Photos are off inside the building, so use '
+                            'words.'),
                     const SizedBox(height: 14),
                   ],
                   if (_canPhoto) ...[

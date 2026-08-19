@@ -91,8 +91,9 @@ class _LeaksScreenState extends State<LeaksScreen> {
           children: [
             Expanded(child: Text('Reports', style: A.h1)),
             // The badge only shows for an account that really can close other
-            // people's reports.
-            if (Store.isFixer) const ClayPill('Fixer', icon: Icons.build_rounded),
+            // people's reports, which means one inside an institution.
+            if (Store.isFixer && Store.joined)
+              const ClayPill('Fixer', icon: Icons.build_rounded),
             const SizedBox(width: 8),
             // The same reports, on the map. A list answers "how bad"; a map
             // answers "where", and that is the question a second reporter has.
@@ -179,8 +180,8 @@ class _LeaksScreenState extends State<LeaksScreen> {
               actions: Store.canClose(l) && l.status != Status.fixed
                   ? Row(
                       children: [
-                        // Starting work is a fixer's word, not a reporter's.
-                        if (Store.isFixer && l.status != Status.inProgress) ...[
+                        // Whoever can close it can say work has started on it.
+                        if (l.status != Status.inProgress) ...[
                           Expanded(
                             child: _Action('Start', Icons.build_rounded, A.accentDeep,
                                 () => _set(l, Status.inProgress)),
