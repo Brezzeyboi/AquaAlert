@@ -260,6 +260,35 @@ void main() {
     expect(find.text('about 1,500 L a day'), findsNothing);
   });
 
+  /// A goal changed in settings has to reach the glass on the dashboard, which is a
+  /// tab still alive behind it. It did not: the tank was handed to the list as a
+  /// const child, so Flutter kept the instance it already had and the card stayed a
+  /// snapshot of whatever was true when the shell was built.
+  testWidgets('a goal changed in settings reaches the dashboard', (tester) async {
+    await boot(tester);
+    expect(find.text('goal 10,000 L'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.person_rounded));
+    await tester.pump(const Duration(milliseconds: 400));
+    await open(tester, find.byIcon(Icons.settings_outlined));
+    await reach(tester, find.text('Change'));
+    await open(tester, find.text('Change'));
+    expect(find.text('Monthly goal'), findsWidgets);
+
+    // Straight to the end of the slider rather than a drag: 30,000 is unmistakable.
+    await tester.tap(find.byType(Slider), warnIfMissed: false);
+    await tester.drag(find.byType(Slider), const Offset(400, 0));
+    await tester.pump();
+    await open(tester, find.text('Save'));
+
+    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.byIcon(Icons.home_rounded));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('goal 10,000 L'), findsNothing);
+    expect(find.text('goal 30,000 L'), findsOneWidget);
+  });
+
   /// A fast tap used to be invisible: down and up land in the same frame, so the
   /// squash and the ink dashes were painted for no time at all and the comic
   /// press only showed if you held the button a moment longer. The press is now

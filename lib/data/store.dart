@@ -182,9 +182,20 @@ class Store {
   static const campusLitres = 214000;
   static const allLitres = 1870000;
 
-  /// Your own monthly target — the line drawn across the tank, and the figure
-  /// the settings screen lets you change.
-  static int monthlyGoal = 10000;
+  /// Your own monthly target — the line drawn across the tank, and the figure the
+  /// settings screen lets you change.
+  ///
+  /// Per person, like the litres it is measured against: one shared number would
+  /// have the head's target deciding how full a student's glass looks. Writing it
+  /// says so out loud, because the dashboard is a tab that stays alive in an
+  /// IndexedStack behind settings — it redraws when the store moves and not when a
+  /// screen it cannot see calls setState.
+  static final goalBy = <String, int>{};
+  static int get monthlyGoal => goalBy[userName] ?? 10000;
+  static set monthlyGoal(int v) {
+    goalBy[userName] = v;
+    touch();
+  }
 
   /// Settings that actually do something. Motion gates the tank's accelerometer,
   /// haptics gate the tap feedback on every clay control.

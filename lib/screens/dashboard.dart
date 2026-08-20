@@ -28,11 +28,15 @@ class DashboardScreen extends StatelessWidget {
       // An event belongs to an institution, so it only exists for somebody who
       // joined one. Reporting never depends on it.
       if (Store.joined && Store.event.days > 0) _EventBanner(Store.event, onTap: onEvent),
-      const _TankCard(),
+      // Read out of the store *here*, and handed down. A const child is the same
+      // instance on every rebuild, and Flutter skips a child it is handed
+      // identically — which is how the glass and the map came to be snapshots of
+      // whatever was true when the shell was first built.
+      _TankCard(saved: Store.yourLitres, goal: Store.monthlyGoal),
       _ImpactCard(onBoard: onBoard),
       // Where the leaks are, before how many there are: a report is a place
       // first, and tapping this opens the neighbourhood.
-      const MapPreview(),
+      MapPreview(pins: Store.nearby),
       _StatTiles(onTap: onSeeAll),
       _RecentCard(onSeeAll: onSeeAll),
     ];
@@ -247,12 +251,24 @@ class _LiveState extends State<_Live> with SingleTickerProviderStateMixin {
 
 /// The tank, and the number it stands for. The glass does the feeling, the
 /// figure does the fact.
+///
+/// The two numbers arrive as arguments rather than being read out of the store in
+/// here, and that is not a style choice: a `const _TankCard()` is the *same widget
+/// instance* every time the dashboard rebuilds, and Flutter skips a child it is
+/// handed identically — so the glass sat frozen at whatever it read the first time
+/// the shell was built, and a goal changed in settings never reached it. Passing the
+/// values in makes the widget differ when the data does, and the water's own state
+/// survives because the type and the position have not changed.
 class _TankCard extends StatelessWidget {
-  const _TankCard();
+  const _TankCard({required this.saved, required this.goal});
+
+  /// Not named `litres`: that is the digit-grouping function this file calls two
+  /// lines down, and a field of that name shadows it.
+  final int saved, goal;
 
   @override
   Widget build(BuildContext context) {
-    final fill = (Store.yourLitres / Store.monthlyGoal).clamp(0.0, 1.0);
+    final fill = (saved / goal).clamp(0.0, 1.0);
     return ClayCard(
       padding: const EdgeInsets.fromLTRB(16, 16, 18, 16),
       child: Row(
@@ -272,7 +288,7 @@ class _TankCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.baseline,
                     textBaseline: TextBaseline.alphabetic,
                     children: [
-                      CountUp(Store.yourLitres, style: A.figure(40)),
+                      CountUp(saved, style: A.figure(40)),
                       const SizedBox(width: 5),
                       Text('L', style: A.h2.copyWith(fontSize: 22)),
                     ],
@@ -280,7 +296,7 @@ class _TankCard extends StatelessWidget {
                 ),
                 Text('saved this month', style: A.bodySoft.copyWith(fontSize: 16)),
                 const SizedBox(height: 10),
-                Text('goal ${litres(Store.monthlyGoal)} L', style: A.bodySoft.copyWith(fontSize: 14)),
+                Text('goal ${litres(goal)} L', style: A.bodySoft.copyWith(fontSize: 14)),
                 const SizedBox(height: 4),
                 Text('${(fill * 100).round()}% of the way', style: A.tiny),
               ],

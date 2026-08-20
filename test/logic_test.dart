@@ -348,6 +348,25 @@ void main() {
     Store.use(Store.saved.first);
   });
 
+  /// The dashboard is a tab that stays alive behind settings, so it only redraws
+  /// when the store says it moved. Changing the goal has to say so, or the tank
+  /// keeps measuring against the old line until something else happens to touch.
+  test('changing the monthly goal moves the store, and is your own', () {
+    Store.use(Store.saved.first);
+    final was = Store.revision.value;
+
+    Store.monthlyGoal = 14000;
+    expect(Store.monthlyGoal, 14000);
+    expect(Store.revision.value, greaterThan(was)); // the dashboard hears it
+
+    Store.use(Store.saved[2]); // the head's target is his own
+    expect(Store.monthlyGoal, 10000);
+
+    Store.use(Store.saved.first);
+    expect(Store.monthlyGoal, 14000);
+    Store.goalBy.clear();
+  });
+
   /// A photograph taken inside a school is a photograph of a school. The rule sits
   /// on [Leak.photo] rather than on the screens, so this checks the data as well as
   /// a report filed with a picture attached anyway.

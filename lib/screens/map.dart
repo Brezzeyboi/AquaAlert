@@ -616,12 +616,19 @@ class _Neighbourhood extends CustomPainter {
 /// The dashboard's window onto the same map: the same painter, wider view, no
 /// labels, and the whole card opens the real thing.
 class MapPreview extends StatelessWidget {
-  const MapPreview({super.key, this.height = 132});
+  const MapPreview({super.key, this.height = 132, this.pins});
+
   final double height;
+
+  /// The reports to draw, handed in by the dashboard so that this card is a
+  /// different widget when the neighbourhood is. Left null it reads the store
+  /// itself, which is right anywhere it is not sitting inside a list that gets
+  /// rebuilt.
+  final List<Leak>? pins;
 
   @override
   Widget build(BuildContext context) {
-    final pins = Store.nearby;
+    final pins = this.pins ?? Store.nearby;
     return ClayCard(
       onTap: () => Navigator.of(context).push(A.route(const MapScreen())),
       padding: const EdgeInsets.all(7),
