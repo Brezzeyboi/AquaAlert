@@ -19,8 +19,20 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  /// The field inside the rename sheet. Owned by the screen, because disposing a
+  /// controller as soon as claySheet returns kills it while the sheet is still
+  /// animating out — the "A TextEditingController was used after being disposed"
+  /// crash the join sheet had.
+  final _nameField = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameField.dispose();
+    super.dispose();
+  }
+
   Future<void> _rename() async {
-    final field = TextEditingController(text: Store.fullName);
+    _nameField.text = Store.fullName;
     await claySheet<void>(
       context,
       ClayCard(
@@ -36,7 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: A.tiny),
             const SizedBox(height: 14),
             AuthField(
-              controller: field,
+              controller: _nameField,
               icon: Icons.person_outline_rounded,
               hint: 'Your name',
               caps: TextCapitalization.words,
@@ -45,7 +57,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ClayButton(
               label: 'Save',
               onTap: () {
-                setState(() => Store.rename(field.text));
+                setState(() => Store.rename(_nameField.text));
                 Navigator.of(context).pop();
               },
             ),
@@ -53,7 +65,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
-    field.dispose();
   }
 
   /// One sheet for the rows that exist to tell you something — privacy, storage,
