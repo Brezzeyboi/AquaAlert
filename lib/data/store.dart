@@ -86,9 +86,12 @@ class Store {
   static String get userLine =>
       joined ? (userClass.isEmpty ? shortName : userClass) : userPlace;
 
-  /// Whether this account can close reports inside its own institution. Off by
-  /// default, because the ordinary user of a community app is a reporter, not a
-  /// fixer, and it means nothing at all without an institution to be one for.
+  /// Whether this account can close reports inside its own institution. It comes
+  /// with the account and there is no switch for it: being the person who mends
+  /// things is something a school gives you, not something you grant yourself in
+  /// settings. Off for everybody else, because the ordinary user of a community app
+  /// is a reporter, and it means nothing at all without an institution to be one
+  /// for.
   static bool isFixer = false;
 
   /// Who may mark a report fixed.

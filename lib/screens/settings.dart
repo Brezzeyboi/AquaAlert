@@ -302,27 +302,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                     ),
                   ),
-                  // Only for somebody who joined one. There is no fixer on a
-                  // street: a community report is closed by whoever filed it, and
-                  // this switch is the caretaker or the head inside a building.
-                  if (Store.joined) ...[
-                    const _Head('Your role'),
-                    ClayCard(
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
-                      child: _ToggleRow(
-                        label: 'Fixer mode',
-                        sub: 'For whoever actually mends things in ${Store.shortName}: '
-                            'close and start other people’s reports inside it. Street '
-                            'reports are never yours to close.',
-                        value: Store.isFixer,
-                        onChanged: (v) => setState(() {
-                          Store.isFixer = v;
-                          Store.touch();
-                        }),
-                        last: true,
-                      ),
-                    ),
-                  ],
+                  // No "Your role" switch. Being the person who mends things is
+                  // not something you grant yourself from a settings screen — the
+                  // school head has it because the school gave it to him, and
+                  // [Store.isFixer] comes with the account. It is also the one
+                  // switch nobody would ever turn off, which makes it furniture.
                   const _Head('Monthly goal'),
                   ClayCard(
                     padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
