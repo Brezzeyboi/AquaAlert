@@ -237,6 +237,29 @@ void main() {
     expect(Store.unread, greaterThan(0));
   });
 
+  /// The slider estimates severity from three words. Somebody who has watched a
+  /// bucket fill, or read a meter, knows better than that — so the readout is also
+  /// the way in, and what they type is what the report carries.
+  testWidgets('a typed figure replaces the slider estimate', (tester) async {
+    await boot(tester);
+    await open(tester, find.byIcon(Icons.add_rounded));
+    await open(tester, find.text('Anywhere around you'));
+
+    final readout = find.textContaining('L a day');
+    await reach(tester, readout);
+    expect(find.textContaining('about'), findsWidgets); // estimating, to start with
+    await open(tester, readout.first);
+
+    final field = find.ancestor(of: find.text('e.g. 240'), matching: find.byType(TextField));
+    await tester.enterText(field, '1500');
+    await tester.pump();
+    await open(tester, find.text('Use this figure'));
+
+    expect(find.text('1,500 L a day'), findsOneWidget);
+    expect(find.text('Your own figure'), findsOneWidget);
+    expect(find.text('about 1,500 L a day'), findsNothing);
+  });
+
   /// A fast tap used to be invisible: down and up land in the same frame, so the
   /// squash and the ink dashes were painted for no time at all and the comic
   /// press only showed if you held the button a moment longer. The press is now

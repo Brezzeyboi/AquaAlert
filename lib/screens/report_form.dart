@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../data/mock.dart';
 import '../data/store.dart';
@@ -69,6 +70,10 @@ class _ReportFormState extends State<ReportForm> {
       [Scope.community, if (Store.joined) Store.institutionScope];
   final _where = TextEditingController();
   final _note = TextEditingController();
+
+  /// The field inside the litres sheet. It belongs to the screen so that closing
+  /// the sheet cannot dispose something the sheet is still animating with.
+  final _exactField = TextEditingController();
   String? _room, _kind;
   double _severity = 0.5;
   bool _located = false;
@@ -89,17 +94,85 @@ class _ReportFormState extends State<ReportForm> {
       _kind != null && (_campus ? _where.text.trim().isNotEmpty || _room != null : _located || _where.text.trim().isNotEmpty);
 
   /// Litres a day at the current slider position, interpolated between the three
-  /// anchors so the readout moves with the thumb.
-  int get _litres {
+  /// anchors so the readout moves with the thumb — unless somebody has typed a
+  /// figure, in which case theirs wins. A caretaker who has watched a bucket fill,
+  /// or anyone reading a meter, knows better than three words on a slider.
+  int get _litres => _exact ?? _fromSlider;
+
+  int get _fromSlider {
     final t = _severity.clamp(0.0, 1.0) * 2;
     final i = t.floor().clamp(0, 1);
     return (_rates[i] + (_rates[i + 1] - _rates[i]) * (t - i)).round();
+  }
+
+  /// A typed figure, or null while the slider is doing the estimating. Cleared the
+  /// moment the slider moves, so the number on screen is never a leftover of
+  /// something the person has since changed their mind about.
+  int? _exact;
+
+  /// Somebody who knows states it. Bounded because this figure ends up in a
+  /// leaderboard: anything over a day of a mains burst is a typo or a joke, and a
+  /// leak of zero litres is not a leak.
+  static const _maxLitres = 20000;
+
+  Future<void> _typeLitres() async {
+    // Owned by the screen, not by the sheet. Disposing a controller when
+    // claySheet returns kills it while the sheet is still animating out, which is
+    // the "A TextEditingController was used after being disposed" crash — the same
+    // one the join sheet had.
+    _exactField.text = _litres.toString();
+    await claySheet<void>(
+      context,
+      StatefulBuilder(
+        builder: (sheet, set) {
+          final typed = int.tryParse(_exactField.text.trim());
+          final ok = typed != null && typed > 0 && typed <= _maxLitres;
+          return ClayCard(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Center(child: SheetGrip()),
+                Text('Litres a day', style: A.h2),
+                const SizedBox(height: 4),
+                Text(
+                  'If you know the figure, put it in. A bucket is about 15 litres, '
+                  'so a tap that fills one in a minute is roughly 21,600 a day.',
+                  style: A.tiny,
+                ),
+                const SizedBox(height: 14),
+                _Input(_exactField, 'e.g. 240', number: true, onChanged: () => set(() {})),
+                const SizedBox(height: 8),
+                Text(
+                  ok || _exactField.text.trim().isEmpty
+                      ? 'Up to ${litres(_maxLitres)} L a day.'
+                      : 'A whole number between 1 and ${litres(_maxLitres)}.',
+                  style: A.tiny.copyWith(color: ok || _exactField.text.trim().isEmpty ? A.inkSoft : A.amber),
+                ),
+                const SizedBox(height: 16),
+                ClayButton(
+                  label: 'Use this figure',
+                  onTap: ok
+                      ? () {
+                          setState(() => _exact = typed);
+                          Navigator.of(sheet).pop();
+                        }
+                      : null,
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   @override
   void dispose() {
     _where.dispose();
     _note.dispose();
+    _exactField.dispose();
     super.dispose();
   }
 
@@ -252,12 +325,32 @@ class _ReportFormState extends State<ReportForm> {
                       children: [
                         Row(
                           children: [
-                            Expanded(child: Text('Slow to gushing', style: A.tiny)),
-                            Text('about ${litres(_litres)} L a day',
-                                style: A.label.copyWith(color: A.accentDeep)),
+                            Expanded(
+                              child: Text(_exact == null ? 'Slow to gushing' : 'Your own figure',
+                                  style: A.tiny),
+                            ),
+                            // The readout is the way in: tap the number to state it
+                            // exactly instead of estimating with three words.
+                            GestureDetector(
+                              onTap: _typeLitres,
+                              behavior: HitTestBehavior.opaque,
+                              child: Row(
+                                children: [
+                                  Text('${_exact == null ? 'about ' : ''}${litres(_litres)} L a day',
+                                      style: A.label.copyWith(color: A.accentDeep)),
+                                  const SizedBox(width: 5),
+                                  const Icon(Icons.edit_rounded, size: 14, color: A.accentDeep),
+                                ],
+                              ),
+                            ),
                           ],
                         ),
-                        _Severity(_severity, (v) => setState(() => _severity = v)),
+                        // Moving the slider goes back to estimating: two numbers on
+                        // one control, one of them stale, is worse than either.
+                        _Severity(_severity, (v) => setState(() {
+                              _severity = v;
+                              _exact = null;
+                            })),
                         Row(
                           children: [
                             Expanded(child: Text('Slow', style: A.tiny)),
@@ -362,11 +455,16 @@ class _Note extends StatelessWidget {
 
 /// One text row, sunk into the card it lives in.
 class _Input extends StatelessWidget {
-  const _Input(this.controller, this.hint, {this.lines = 1, this.onChanged});
+  const _Input(this.controller, this.hint,
+      {this.lines = 1, this.onChanged, this.number = false});
   final TextEditingController controller;
   final String hint;
   final int lines;
   final VoidCallback? onChanged;
+
+  /// A figure rather than words: the digits keyboard, and nothing but digits
+  /// allowed through, so the parse on the other side cannot be handed "12 litres".
+  final bool number;
 
   @override
   Widget build(BuildContext context) => ClayWell(
@@ -375,8 +473,11 @@ class _Input extends StatelessWidget {
         child: TextField(
           controller: controller,
           maxLines: lines,
+          keyboardType: number ? TextInputType.number : null,
+          inputFormatters:
+              number ? [FilteringTextInputFormatter.digitsOnly] : null,
           onChanged: (_) => onChanged?.call(),
-          style: A.body,
+          style: number ? A.mono(19, w: FontWeight.w700) : A.body,
           decoration: InputDecoration(
             isDense: true,
             contentPadding: EdgeInsets.zero,
