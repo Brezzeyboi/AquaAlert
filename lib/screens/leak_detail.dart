@@ -26,18 +26,16 @@ class LeakDetailScreen extends StatefulWidget {
 class _LeakDetailScreenState extends State<LeakDetailScreen> {
   Leak get leak => widget.leak;
 
-  /// One vouch per person per report, for as long as the app is open.
-  bool _confirmed = false;
+  /// One vouch per person, and the report remembers who — so this survives leaving
+  /// the screen, and switching accounts hands the next person their own say.
+  bool get _confirmed => leak.confirmedBy.contains(Store.userName);
 
   /// Community verification: there is no inspector and no admin in this app, so a
   /// report earns its credibility from the people who can see the leak with their
   /// own eyes. Confirming it is the thing anyone can do about somebody else's.
   void _confirm() {
-    setState(() {
-      leak.confirms++;
-      _confirmed = true;
-    });
-    Store.touch();
+    if (!Store.confirm(leak)) return;
+    setState(() {});
     showClayToast(context, '${leak.confirms} people have seen this one');
   }
 
@@ -224,7 +222,7 @@ class _Saved extends StatelessWidget {
             Text('Fixed. That water stays in the tank.',
                 style: A.h3, textAlign: TextAlign.center),
             const SizedBox(height: 6),
-            Text('Counted from the day it was reported to today.',
+            Text('Counted from the day it was reported.',
                 style: A.bodySoft.copyWith(fontSize: 13.5), textAlign: TextAlign.center),
             const SizedBox(height: 18),
             ClayButton(label: 'Done', onTap: () => Navigator.of(context).pop()),

@@ -18,9 +18,12 @@ class EventScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const e = Store.event;
-    final mine = Store.classes.where((c) => c.name == Store.userClass).firstOrNull;
-    final show = mine ?? Store.classes.first;
-    final rank = Store.classes.indexOf(show) + 1;
+    // The board, not the fixture order: a class climbs when one of its leaks is
+    // fixed, so rank has to be read off the sorted list.
+    final board = Store.board;
+    final mine = board.where((c) => c.name == Store.userClass).firstOrNull;
+    final show = mine ?? board.first;
+    final rank = board.indexOf(show) + 1;
     return Scaffold(
       backgroundColor: A.surface,
       body: SafeArea(
@@ -122,10 +125,10 @@ class EventScreen extends StatelessWidget {
                         const SizedBox(height: 10),
                         Text(
                           mine == null
-                              ? '${Store.classes.length} classes are on the board.'
+                              ? '${board.length} classes are on the board.'
                               : '${show.students} students · '
-                                  '${litres(Store.classes.first.litres - show.litres)} L behind '
-                                  '${Store.classes.first.name}',
+                                  '${litres(board.first.litres - show.litres)} L behind '
+                                  '${board.first.name}',
                           style: A.tiny,
                         ),
                       ],

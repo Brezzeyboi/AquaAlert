@@ -88,6 +88,11 @@ class Leak {
   /// can see the leak with their own eyes, which is the whole model.
   int confirms;
 
+  /// Which of them were on this phone. The count above starts from the fixture, so
+  /// this is what stops one person vouching twice by reopening the screen or by
+  /// switching accounts and back.
+  final Set<String> confirmedBy = {};
+
   /// A school or college report carries no photo and no map — only people who
   /// joined that institution can see it at all.
   String get visibleTo => switch (scope) {
@@ -105,7 +110,14 @@ class Leak {
         Scope.community => null,
       };
 
-  int get litresSaved => status == Status.fixed ? litresPerDay * daysOpen : 0;
+  /// What this report has stopped being wasted, once somebody marks it fixed.
+  ///
+  /// A leak reported and mended on the same day still saved water — hours of it —
+  /// so a same-day fix counts as one day rather than as nothing. Without that floor
+  /// the whole loop reads as broken: file a report, fix it, and the app credits you
+  /// zero litres for it.
+  int get litresSaved =>
+      status == Status.fixed ? litresPerDay * (daysOpen < 1 ? 1 : daysOpen) : 0;
 }
 
 /// XP levels. Reservoir is the ceiling; the names are the water cycle.
@@ -148,9 +160,14 @@ class Award {
 }
 
 class ClassRow {
-  const ClassRow(this.name, this.litres, this.students);
+  ClassRow(this.name, this.litres, this.students);
   final String name;
-  final int litres, students;
+
+  /// Not final: a leak fixed inside the school lands on its reporter's class, so
+  /// the board is something the app moves rather than a table it prints.
+  int litres;
+
+  final int students;
 }
 
 class Student {

@@ -21,6 +21,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Sorted on read, because a class climbs the moment one of its leaks is fixed.
+    final board = Store.board;
     return Scaffold(
       backgroundColor: A.surface,
       body: SafeArea(
@@ -59,7 +61,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                     ),
                   ),
                   if (_tab == 1)
-                    for (var i = 0; i < Store.classes.length; i++) ...[
+                    for (var i = 0; i < board.length; i++) ...[
                       // Keyed by the tab, so flipping between the two boards
                       // re-runs the cascade instead of swapping rows in silently.
                       Pop(
@@ -67,10 +69,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                         index: i,
                         _Row(
                           rank: i + 1,
-                          name: Store.classes[i].name,
-                          sub: '${Store.classes[i].students} students',
-                          litres: Store.classes[i].litres,
-                          mine: Store.classes[i].name == Store.userClass,
+                          name: board[i].name,
+                          sub: '${board[i].students} students',
+                          litres: board[i].litres,
+                          mine: board[i].name == Store.userClass,
                         ),
                       ),
                       const SizedBox(height: 10),

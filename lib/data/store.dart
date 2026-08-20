@@ -137,6 +137,11 @@ class Store {
   /// Becomes that person. Everything downstream reads these fields, so this one
   /// call changes the greeting, the badges, what the lists are allowed to show
   /// and whether the close buttons exist.
+  ///
+  /// It deliberately does *not* reset the litres or the XP. Those belong to the
+  /// person and not to the session, so switching away and back finds them where
+  /// they were left — including credit somebody else earned for you while you were
+  /// gone.
   static void use(Persona p) {
     fullName = p.name;
     _call = p.call;
@@ -145,16 +150,32 @@ class Store {
     userPlace = p.place;
     joined = p.joined;
     isFixer = p.fixer;
-    xp = p.xp;
-    yourLitres = p.litres;
     touch(); // what the lists may show changes with the person
   }
 
-  static int xp = 1240;
+  /// Litres saved and XP, per person on this phone.
+  ///
+  /// A report belongs to whoever filed it, so the credit for fixing one has to
+  /// reach them even when somebody else is signed in: the head closes a student's
+  /// report, and it is the student's tank that rises. Seeded from the saved
+  /// accounts, and owned by the app after that. Somebody who types a brand new
+  /// address starts at nothing, which is the truth.
+  static final litresBy = <String, int>{for (final p in saved) p.call: p.litres};
+  static final xpBy = <String, int>{for (final p in saved) p.call: p.xp};
+
+  static int get xp => xpBy[userName] ?? 0;
+  static set xp(int v) => xpBy[userName] = v;
 
   /// Grows when a leak you reported is marked fixed, which is what makes the
   /// tank rise and the impact bars move during a demo.
-  static int yourLitres = 8600;
+  static int get yourLitres => litresBy[userName] ?? 0;
+  static set yourLitres(int v) => litresBy[userName] = v;
+
+  /// The class a person on this phone belongs to, and nothing for somebody it does
+  /// not know — which is most of AquaAlert and every name in the fixture.
+  static String classOf(String call) =>
+      saved.where((p) => p.call == call).map((p) => p.klass).firstOrNull ?? '';
+
   static const campusLitres = 214000;
   static const allLitres = 1870000;
 
@@ -330,24 +351,30 @@ class Store {
   /// Every class in the school, sections A to E of classes 9, 10 and 11 — the
   /// three years the event runs for. Litres are stated per class rather than
   /// generated at random, so the board is the same every time it is opened and a
-  /// demo can point at a row and talk about it.
+  /// demo can point at a row and talk about it. They move from there: [credit]
+  /// adds a fixed school leak to its reporter's class.
   static final classes = <ClassRow>[
-    const ClassRow('Class 10-B', 42800, 38),
-    const ClassRow('Class 9-C', 39100, 41), // Rehan's, second and chasing
-    const ClassRow('Class 11-A', 36500, 35),
-    const ClassRow('Class 10-D', 33200, 40),
-    const ClassRow('Class 9-A', 31600, 37),
-    const ClassRow('Class 11-C', 29800, 33),
-    const ClassRow('Class 10-A', 27400, 39),
-    const ClassRow('Class 9-E', 25100, 36),
-    const ClassRow('Class 11-E', 23700, 34),
-    const ClassRow('Class 10-C', 22900, 38),
-    const ClassRow('Class 9-B', 20400, 40),
-    const ClassRow('Class 11-B', 18600, 35),
-    const ClassRow('Class 10-E', 16300, 37),
-    const ClassRow('Class 9-D', 14800, 39),
-    const ClassRow('Class 11-D', 12200, 32),
+    ClassRow('Class 10-B', 42800, 38),
+    ClassRow('Class 9-C', 39100, 41), // Rehan's, second and chasing
+    ClassRow('Class 11-A', 36500, 35),
+    ClassRow('Class 10-D', 33200, 40),
+    ClassRow('Class 9-A', 31600, 37),
+    ClassRow('Class 11-C', 29800, 33),
+    ClassRow('Class 10-A', 27400, 39),
+    ClassRow('Class 9-E', 25100, 36),
+    ClassRow('Class 11-E', 23700, 34),
+    ClassRow('Class 10-C', 22900, 38),
+    ClassRow('Class 9-B', 20400, 40),
+    ClassRow('Class 11-B', 18600, 35),
+    ClassRow('Class 10-E', 16300, 37),
+    ClassRow('Class 9-D', 14800, 39),
+    ClassRow('Class 11-D', 12200, 32),
   ];
+
+  /// The class board, highest first. Sorted on the way out rather than kept in
+  /// order, because the litres move now: fix a leak in school and a class climbs,
+  /// which a list authored in descending order would quietly stop reflecting.
+  static List<ClassRow> get board => [...classes]..sort((a, b) => b.litres - a.litres);
 
   /// Top few only, plus your own row. A named public ranking of every child
   /// means some child is visibly last in a school app.
@@ -512,12 +539,33 @@ class Store {
   static int _filed = 0;
 
   /// Credits the litres a fixed leak will no longer waste, and the XP that comes
-  /// with it. Called from the leak detail when someone marks it fixed.
+  /// with it — to whoever *reported* it, never to whoever happened to close it.
+  /// That is the whole shape of the thing: a student files it, the head mends it,
+  /// and the student's tank is what rises.
   static void credit(Leak leak) {
+    final saved = leak.litresSaved;
+    if (saved > 0) {
+      litresBy[leak.reporter] = (litresBy[leak.reporter] ?? 0) + saved;
+      xpBy[leak.reporter] = (xpBy[leak.reporter] ?? 0) + (saved / 20).round();
+      // Fixed inside the school, so it counts for the reporter's class too — which
+      // is the number the event and the class board are actually about.
+      final klass = classOf(leak.reporter);
+      if (leak.scope != Scope.community && klass.isNotEmpty) {
+        final row = classes.where((c) => c.name == klass).firstOrNull;
+        if (row != null) row.litres += saved;
+      }
+    }
     touch();
-    if (leak.reporter != userName) return; // only your own reports score
-    yourLitres += leak.litresSaved;
-    xp += (leak.litresSaved / 20).round();
+  }
+
+  /// Somebody nearby says they can see it too. One vouch per person, remembered on
+  /// the report itself: leaving the screen, or coming back as somebody else, must
+  /// not let the same person vouch twice. Returns false if they already have.
+  static bool confirm(Leak leak) {
+    if (!leak.confirmedBy.add(userName)) return false;
+    leak.confirms++;
+    touch();
+    return true;
   }
 
   // Counted from what this account can see, or the tiles would promise reports

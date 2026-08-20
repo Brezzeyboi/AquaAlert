@@ -46,6 +46,15 @@ void main() {
     expect(l(Status.reported).litresSaved, 0);
     expect(l(Status.overdue).litresSaved, 0);
     expect(l(Status.fixed).litresSaved, 300);
+    // Filed and mended the same day: hours of water, credited as one day rather
+    // than as nothing, or the whole loop reads as broken on stage.
+    expect(
+      Leak(
+        id: 'x', title: 't', scope: Scope.community, place: 'p',
+        litresPerDay: 240, daysOpen: 0, status: Status.fixed, reporter: 'r',
+      ).litresSaved,
+      240,
+    );
   });
 
   test('leaderboard shortens only long figures', () {
@@ -269,6 +278,74 @@ void main() {
     Store.use(Store.saved.first);
     expect(Store.userName, 'Rehan');
     expect(Store.leaks.where((l) => l.reporter == 'Rehan').length, mine);
+  });
+
+  /// The whole point of three accounts on one phone: the reports are a shared
+  /// place, not one person's list. A student files inside the school, the head sees
+  /// it and closes it, and the litres land on the student — who was not even signed
+  /// in when it happened. Somebody with no school never sees any of it.
+  test('a report outlives the person who filed it', () {
+    Store.use(Store.saved.first); // Rehan, Class 9-C
+    final klass = Store.classes.firstWhere((c) => c.name == 'Class 9-C');
+    final classBefore = klass.litres;
+    final rehanBefore = Store.yourLitres;
+
+    final leak = Store.file(
+      scope: Scope.school,
+      title: 'Tap left running',
+      place: 'Block D, first floor',
+      litresPerDay: 300,
+    );
+    leak.status = Status.overdue; // open for a few days by the time it is mended
+    const days = 4;
+
+    Store.use(Store.saved[2]); // the head, who was not there when it was filed
+    expect(Store.visible.contains(leak), isTrue);
+    expect(Store.canClose(leak), isTrue);
+    expect(Store.yourLitres, 2100); // his own figure, untouched by the switch
+
+    // He mends it and closes it. Four days of 300 litres stop being wasted.
+    final fixed = Leak(
+      id: leak.id, title: leak.title, scope: leak.scope, place: leak.place,
+      litresPerDay: leak.litresPerDay, daysOpen: days, status: Status.fixed,
+      reporter: leak.reporter,
+    );
+    Store.credit(fixed);
+    expect(Store.yourLitres, 2100); // not the head's litres — he did not report it
+
+    Store.use(Store.saved[1]); // Kavita: no institution at all
+    expect(Store.visible.contains(leak), isFalse);
+
+    Store.use(Store.saved.first); // back to Rehan, and it is waiting for him
+    expect(Store.yourLitres, rehanBefore + 300 * days);
+    expect(klass.litres, classBefore + 300 * days); // and his class climbed with him
+    expect(Store.visible.contains(leak), isTrue);
+
+    // Put the fixture back.
+    Store.leaks.remove(leak);
+    Store.litresBy['Rehan'] = rehanBefore;
+    Store.xpBy['Rehan'] = 1240;
+    klass.litres = classBefore;
+  });
+
+  /// The count is only worth something if it counts people rather than taps.
+  test('one vouch per person, remembered on the report', () {
+    Store.use(Store.saved.first);
+    final leak = Store.leaks.firstWhere((l) => l.reporter != Store.userName);
+    final before = leak.confirms;
+
+    expect(Store.confirm(leak), isTrue);
+    expect(leak.confirms, before + 1);
+    expect(Store.confirm(leak), isFalse); // the same person, again
+    expect(leak.confirms, before + 1);
+
+    Store.use(Store.saved[2]); // somebody else on the phone gets their own say
+    expect(Store.confirm(leak), isTrue);
+    expect(leak.confirms, before + 2);
+
+    leak.confirms = before;
+    leak.confirmedBy.clear();
+    Store.use(Store.saved.first);
   });
 
   /// A photograph taken inside a school is a photograph of a school. The rule sits
